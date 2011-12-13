@@ -1,0 +1,3 @@
+ORA
+Unclosed.quotation
+SQL.syntax

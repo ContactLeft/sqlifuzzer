@@ -1,0 +1,3 @@
+reflected
+<script>alert(1)<script>
+<img src=l onerror=alert(2)>
