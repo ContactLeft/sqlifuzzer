@@ -232,6 +232,14 @@ fi
 safefilename=`echo $uhostname-$(date)| replace " " "-" | replace "//" "" | replace ":" "."`
 safehostname=`echo $uhostname | replace " " "-" | replace "//" "" | replace ":" "."`
 
+#this just sets curls -k option which means that it will handle cert errors without borking
+protocol=`echo $uhostname| cut -d ":" -f 1` 
+if [[ "$protocol" == "https" ]]; then
+	httpssupport="-k"
+else
+	httpssupport=""	
+fi
+
 #unless we are using an .input file, the safelogname should be the $burplog path value
 if [[ true != "$I" ]]; then
 	safelogname=`echo $burplog | replace " " "" | replace "/" "SLASH" | replace ":" "." | replace '\' ''`
@@ -410,7 +418,7 @@ fi
 #URL connection testing routine:
 if [ true = "$T" ] ; then
 	echo "Testing connection to $testurl" 
-	testresult=`curl $testurl -v -o testoutput.html --cookie $cookie $curlproxy -w %{http_code}:%{size_download}`
+	testresult=`curl $testurl -v -o testoutput.html --cookie $cookie $curlproxy $httpssupport -w %{http_code}:%{size_download}`
 	testresultstatus=`echo $testresult | cut -d ":" -f 1`
 	testresultlength=`echo $testresult | cut -d ":" -f 2`
 	echo "The status code was "$testresultstatus 
@@ -813,13 +821,13 @@ cat cleanscannerinputlist.txt | while read i; do
 						# IDEA: put an if 'sentnormalrequestflag' here so you only send one good request per URL instead of one per parameter
 						if [[ $sentnormalrequestflag != "TRUE" ]]; then
 							# send a 'normal' request						
-							and1eq1=`curl $i -o dump --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`; 
+							and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`; 
 							sentnormalrequestflag="TRUE";								
 							echo "Testing URL $K of $entries GET $i";
 						fi
 						# send an 'evil' request
 						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload";
-						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 						#echo "EVIL GET " $r; 
 					else	# we're doing a POST - not so simple...
 						#echo "debug y="$y;
@@ -828,17 +836,17 @@ cat cleanscannerinputlist.txt | while read i; do
 							# send a 'normal' POST request
 							if (($firstPOSTURIURL>0)) ; then
 								if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 									sentnormalrequestflag="TRUE";
 									echo "Testing URL $K of $entries POST $uhostname$page?$params??$static"; 	
 								fi
 								if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-									and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+									and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 									sentnormalrequestflag="TRUE";
 									echo "Testing URL $K of $entries POST $uhostname$page??$params"; 
 								fi
 							else #just a normal POST:
-								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 								sentnormalrequestflag="TRUE";
 								echo "Testing URL $K of $entries POST $uhostname$page?$params"; 		
 							fi						
@@ -846,16 +854,16 @@ cat cleanscannerinputlist.txt | while read i; do
 						# send an 'evil' POST request
 						if (($firstPOSTURIURL>0)) ; then
 							if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-								and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+								and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 								echo "$method URL $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"; 	
 							fi
 							if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-								and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+								and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 								echo "$method URL $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"; 
 							fi
 						else #just a normal POST:
 							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload";
-							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
 							#echo "EVIL POST " $uhostname$page"?"$output;
 						
 						fi
