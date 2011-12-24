@@ -672,9 +672,11 @@ firstPOSTURIURL=0
 # 1 postURI param detected, fuzz the postURI params, send the post data params as a static string
 # 2 postURI param detected, fuzz the post data params, send the postURI params as a static string
 
+firstrunflag=0
+			
 echo "" > ./session/$safehostname.$safelogname.oldURL.txt
 echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
-	
+
 cat cleanscannerinputlist.txt | while read i; do
 	methodical=`echo $i | cut -d " " -f 1`;
 	if [[ $i =~ $question$question && "$methodical" =~ "POST" ]] ; then
@@ -743,6 +745,8 @@ cat cleanscannerinputlist.txt | while read i; do
 	
 	#echo "debug params "$params;				
 	stringofparams=`echo $params | tr "&" " "`;
+	
+	#echo `echo $stringofparams` >> ./session/$safehostname.$safelogname.siteanalysis.txt	
 
 	#code that compares the current URL and params for comparison against the old URL - this can be used to skip params already scanned
 	#newURL=`echo $i | cut -d "?" -f 1| cut -d " " -f2`
@@ -755,9 +759,36 @@ cat cleanscannerinputlist.txt | while read i; do
 	#we want these lists to grow across a given URL, but re-start
 	#when a new URL comes along
 	if [[ "$oldURL" == "$newURL" ]] ; then
-		asd=1	
+		if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
+			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			for dfg in $stringofparams; do
+				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			done
+			firstrunflag=1
+			#echo "first run!"
+			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
+		fi
 	else
-		echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
+		if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
+			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			for dfg in $stringofparams; do
+				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			done
+			firstrunflag=1
+			#echo "first run!"
+			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
+		else
+			#this branch is taken when a new URL comes along
+			#the below writes out the old URL and paramlist info to the siteanalysis log
+			
+			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			echo "$oldURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			cat ./session/$safehostname.$safelogname.oldparamlist.txt >> ./session/$safehostname.$safelogname.siteanalysis.txt
+			#the below clears away the old paramlist
+			echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
+		fi
 	fi
 	#echo "oldURL=$oldURL"
 	#echo "newURL=$newURL"
@@ -950,7 +981,7 @@ cat cleanscannerinputlist.txt | while read i; do
 					#check the response code and alert the user if its not 200:
 					reponseStatusCode=`echo $and1eq2 | cut -d ":" -f 1`;
 					if [[ "$reponseStatusCode" != "200" && "$reponseStatusCode" != "404" ]]
-						then echo "ALERT: Status code "$reponseStatusCode" reposnse";
+						then echo "ALERT: Status code "$reponseStatusCode" response";
 					fi 
 					#beginning of response parsing section
 					#xss testing IF statement
@@ -981,15 +1012,18 @@ cat cleanscannerinputlist.txt | while read i; do
 						if [[ $search != "" ]] ; then 
 							if [[ $method != "POST" ]]; then #we're doing a get - simples
 								echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
-								echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$output";
+								echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
+								tput sgr0 # Reset attributes.
 							else
 								if (($firstPOSTURIURL>0)) ; then
 									if [ $firstPOSTURIURL == 1 ] ; then
 										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$static"??"$output";
+										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
+										tput sgr0 # Reset attributes.
 									else
 										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"??"$output";
+										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
+										tput sgr0 # Reset attributes.
 									fi
 								fi
 							fi		
@@ -1016,15 +1050,18 @@ cat cleanscannerinputlist.txt | while read i; do
 						if [ $answer -gt 4 ] || [ $answer -lt -4 ] ; then
 							if [[ $method != "POST" ]]; then #we're doing a get - simples 
 								echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
-								echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$output" ;
+								echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$output" ;
+								tput sgr0 # Reset attributes.
 							else
 								if (($firstPOSTURIURL>0)) ; then
 									if [ $firstPOSTURIURL == 1 ] ; then
 										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$static"??"$output";
+										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
+										tput sgr0 # Reset attributes.
 									else
 										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"??"$output";
+										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
+										tput sgr0 # Reset attributes.
 									fi
 								fi
 							fi
@@ -1076,15 +1113,18 @@ cat cleanscannerinputlist.txt | while read i; do
 							if (($and1eq2time>$and1eq1time)) ; then
 								if [[ $method != "POST" ]] ; then #we're doing a get - simples
 									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt; 
-									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" ;
+									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output" ;
+									tput sgr0 # Reset attributes.
 								else
 									if (($firstPOSTURIURL>0)) ; then
 										if [ $firstPOSTURIURL == 1 ] ; then
 											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$static"??"$output";
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
+											tput sgr0 # Reset attributes.
 										else
 											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"??"$output";
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
+											tput sgr0 # Reset attributes.
 										fi
 									fi
 								fi
@@ -1114,15 +1154,15 @@ echo $oldURL > ./session/$safehostname.$safelogname.oldURL.txt
 
 #this code stores the stringofparams value (which is now old) in a text file
 # infact, a list is created with a parameter name on each new line:
-for i in $stringofparams; do
-	echo `echo $i | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.oldparamlist.txt
+for dfg in $stringofparams; do
+	echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.oldparamlist.txt
 done
 
 #the list created in the above code grows with each URL as long as the pages match
 #as a result, it has to be sort|uniq-ed to remove duplicate entries
 cp ./session/$safehostname.$safelogname.oldparamlist.txt ./temp.txt
-cat ./temp.txt | sort | uniq > ./session/$safehostname.$safelogname.oldparamlist.txt
-
+cat ./temp.txt | grep . | sort | uniq > ./session/$safehostname.$safelogname.oldparamlist.txt
+rm ./temp.txt
 #cat ./session/$safehostname.$safelogname.oldparamlist.txt
 
 #this code resets the firstposturl flag which is used to handle POSTs with URLs
@@ -1269,7 +1309,14 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 	fi
 	echo "------------------------------------------------------------------" >> ./output/$safefilename$safelogname.html
 	echo "<br>" >> ./output/$safefilename$safelogname.html
-done 
+done
+echo "<H3>sqlifuzzer site analysis</H3>" >> ./output/$safefilename$safelogname.html
+cat ./session/$safehostname.$safelogname.siteanalysis.txt | while read bLINE ; do
+	echo -n "."
+	echo "$bLINE" >> ./output/$safefilename$safelogname.html
+	echo "<br>" >> ./output/$safefilename$safelogname.html
+done
+echo "" > ./session/$safehostname.$safelogname.siteanalysis.txt	
 echo "</body>" >> ./output/$safefilename$safelogname.html
 echo "</html>" >> ./output/$safefilename$safelogname.html 
 echo ""
