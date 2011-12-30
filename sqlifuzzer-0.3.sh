@@ -47,10 +47,11 @@ C=false
 f=false
 o=false
 D=false
+G=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:F namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FG namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -153,6 +154,9 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:F namer; do
 	;;
     F) # Dont skip params that have already been scanned
         F=true
+	;;
+    G) # Dont perform the normal connection test
+        G=true
 	;;
     esac
 done
@@ -326,21 +330,22 @@ if [[ true != "$I" && true != "$T" ]] ; then
 				# POST with URI parameters detected. Store in the 'outer' variable, a line such as:"
 				# /foobar.asp?snafu=yep				
 				outer=`echo "$LINE" | cut -d " " -f 2`;
-				postflag=1;
-				postURIflag=1;			
+				postflag=1
+				postURIflag=1			
 			fi
 			if [[ $LINE =~ $post && !($LINE =~ $question) ]]; then
 				# 'Normal' POST detected:
 				# as before with the URI POST, we chop off the 'POST ' and 'HTTP/1.1' feilds either 
 				# side of the URI, to store in the 'outer' variable something like:
 				# /foobar.asp
-				outer=`echo "$LINE" | cut -d " " -f 2`;
+				outer=`echo "$LINE" | cut -d " " -f 2`
 				# raise the postflag: we are hunting for the postdata now:
-				postflag=1;
+				postflag=1
 			fi
 			if [ $postflag == 1 ]; then
 				#this is my lame postdata matching condition:
 				#the post data has an "=" and DOESENT have a ":" (keeps the headers away from the door...)
+				#TODO sharpen this test up a bit!
 				if [[ $LINE =~ $equals && !($LINE =~ $colon) && !($LINE =~ $question) ]]; then
  					if [ $postURIflag == 1 ]; then
 						echo "POST" $outer"??"$LINE  >> 1scannerinputlist.txt
@@ -354,7 +359,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 						
 					fi
 				#reset the post flag in preparation for parsing the next request:
-				postflag=0;
+				postflag=0
 				fi
 			fi
 		fi
@@ -378,8 +383,6 @@ if [[ true != "$I" && true != "$T" ]] ; then
 		fi
 		N=$((N+1))
 	done
-	#clear # Clear the screen.
-	echo "Please wait..."
 
 	rm 2scannerinputlist.txt 2>/dev/null
 
@@ -388,13 +391,13 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	# however, if a POST request has URI parameters, then these are preceded by a '?', while the POST body params are preceded by '??'
 	if [ true = "$W" ] ; then
 		cat 1scannerinputlist.txt | while read i;
-			do methodical=`echo $i | cut -d " " -f 1`;
+			do methodical=`echo $i | cut -d " " -f 1`
 			if [[ "$methodical" =~ "POST" ]]; then
-				echo GET `echo $i | cut -d " " -f2 | replace '??' '&'` >> 2scannerinputlist.txt; 
-				echo POST `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt;
+				echo GET `echo $i | cut -d " " -f2 | replace '??' '&'` >> 2scannerinputlist.txt 
+				echo POST `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt
 			else
-				echo GET `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt; 
-				echo POST `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt;
+				echo GET `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt 
+				echo POST `echo $i | cut -d " " -f2` >> 2scannerinputlist.txt
 				#the above line causes GET params to be passed as POST body params, otherwide they'd be treated as POST URI params	
 			fi
 		done
@@ -413,6 +416,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	#hence we need duplicates of POST requests that have POST URIs.
 	#this has to be done after the | sort | uniq
 	cat 3scannerinputlist.txt | while read LINE; do
+		echo -n "."
 		echo $LINE >> scannerinputlist.txt
 		if [[ $LINE =~ $post && $LINE =~ $question$question ]]; then
 			echo $LINE >> scannerinputlist.txt
@@ -425,7 +429,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	rm 3scannerinputlist.txt 2>/dev/null
 fi
 
-#URL connection testing routine:
+#OPTIONAL URL connection testing routine:
 if [ true = "$T" ] ; then
 	echo "Testing connection to $testurl" 
 	testresult=`curl $testurl -v -o testoutput.html --cookie $cookie $curlproxy $httpssupport -w %{http_code}:%{size_download}`
@@ -442,11 +446,10 @@ if [ true = "$I" ] ; then
 	rm scannerinputlist.txt 2>/dev/null
 	echo "Parsing input file" $I
 	cat $inputFile | while read quack; do
-		echo $quack >> scannerinputlist.txt;
+		echo $quack >> scannerinputlist.txt
 	done
 	echo "Parsed input file $inputFile" 
 fi
-
 
 #as both the below lists are accumulative ny nature, they must first be cleared down before they are used:
 rm cleanscannerinputlist.txt 2>/dev/null
@@ -457,9 +460,10 @@ if [ false = "$o" ] ; then
 	cat scannerinputlist.txt | while read quack; do
 		textsearch=`echo $quack | grep -i "\(logoff\|login\|logout\|exit\|signout\|delete\|signoff\|password\)"`
 		if [[ "$textsearch" != "" ]] ; then
-			echo $quack >> exceptionlist.txt				
+			echo $quack >> exceptionlist.txt
 		else
 			echo $quack >> cleanscannerinputlist.txt
+			echo -n "."
 		fi
 	done
 else
@@ -468,12 +472,12 @@ fi
 
 if [ true = "$P" ] ; then
 	cat scannerinputlist.txt | while read quack; do
-		echo $quack >> $parseOutputFile;
+		echo $quack >> $parseOutputFile
 	done
 	echo "Input file $parseOutputFile created"
-	echo "The following potentially risky URLs (if any) were removed: " >> urltested.txt;
-	cat exceptionlist.txt >> urltested.txt;
-	echo "	*	*	*	*	*	*" >> urltested.txt;
+	echo "The following potentially risky URLs (if any) were removed: " >> urltested.txt
+	cat exceptionlist.txt >> urltested.txt
+	echo "	*	*	*	*	*	*" >> urltested.txt
 	echo "The following URLs were added: " >> urltested.txt
 	cat cleanscannerinputlist.txt >> urltested.txt
 	cat urltested.txt
@@ -517,60 +521,60 @@ rm payloads.txt 2>/dev/null
 if [ true = "$s" ] ; then
 	if [ true = "$D" ] ; then	
 		cat ./payloads/stringpayloads.$dbms.txt | while read quack; do
-			echo $quack >> payloads.txt;
+			echo $quack >> payloads.txt
 		done
 	else
 		cat ./payloads/stringpayloads.txt | while read quack; do
-			echo $quack >> payloads.txt;
+			echo $quack >> payloads.txt
 		done
 	fi
 fi
 
 if [ true = "$n" ] ; then
 	cat ./payloads/numericpayloads.txt | while read quack; do
-		echo $quack >> payloads.txt;
+		echo $quack >> payloads.txt
 	done
 fi	
 
 if [ true = "$e" ] ; then
 	if [ true = "$D" ] ; then	
 		cat ./payloads/timedelaypayloads.$dbms.txt | while read quack; do
-			echo $quack | replace "X" $timedelay >> payloads.txt;
+			echo $quack | replace "X" $timedelay >> payloads.txt
 		done
 	else
 		cat ./payloads/timedelaypayloads.txt | while read quack; do
-			echo $quack | replace "X" $timedelay >> payloads.txt;
+			echo $quack | replace "X" $timedelay >> payloads.txt
 		done
 	fi
 fi
 
 if [ true = "$b" ] ; then
 	cat ./payloads/commandpayloads.txt | while read quack; do		
-		echo $quack | replace "X" $timedelay >> payloads.txt;
+		echo $quack | replace "X" $timedelay >> payloads.txt
 	done
 fi
 
 if [ true = "$q" ] ; then
 	cat ./payloads/quotepayloads.txt | while read quack; do
-		echo $quack >> payloads.txt;
+		echo $quack >> payloads.txt
 	done
 fi
 
 if [ true = "$j" ] ; then
 	cat ./payloads/all_attacks.txt | while read quack; do
-		echo $quack >> payloads.txt;
+		echo $quack >> payloads.txt
 	done
 fi
 
 if [ true = "$r" ] ; then
 	cat ./payloads/encodedquotepayloads.txt | while read quack; do
-		echo $quack >> payloads.txt;
+		echo $quack >> payloads.txt
 	done
 fi
 
 if [ true = "$Y" ] ; then 
 	cat ./payloads/xsspayloads.txt | while read quack; do
-		echo $quack >> payloads.txt;
+		echo $quack >> payloads.txt
 	done
 fi
 
@@ -578,34 +582,52 @@ fi
 # this allows users to specifiy their own timedelay sqli payloads:
 if [ true = "$C" ] ; then
 	cat $custompayloadlist | while read quack; do
-		echo $quack | replace "X" $timedelay >> payloads.txt;
+		echo $quack | replace "X" $timedelay >> payloads.txt
 	done
 fi
 
 #flatten this down just in case theres an old version lying about:
-rm nullpayloads.txt 2>/dev/null;
+rm nullpayloads.txt 2>/dev/null
 
 # this code prepends each payload with a %00, sometimes useful for filter evasion:
 if [ true = "$A" ] ; then
 	cat payloads.txt | while read quack; do
-		echo "%00"$quack >> nullpayloads.txt;
+		echo "%00"$quack >> nullpayloads.txt
 	done
-	cat nullpayloads.txt > payloads.txt;
-	rm nullpayloads.txt 2>/dev/null;
+	cat nullpayloads.txt > payloads.txt
+	rm nullpayloads.txt 2>/dev/null
 fi
 
 # this code prepends each payload with a %0d%0a, sometimes useful for filter evasion:
 if [ true = "$B" ] ; then
 	cat payloads.txt | while read quack; do
-		echo "%0d%0a"$quack >> nullpayloads.txt;
+		echo "%0d%0a"$quack >> nullpayloads.txt
 	done
-	cat nullpayloads.txt > payloads.txt;
-	rm nullpayloads.txt 2>/dev/null;
+	cat nullpayloads.txt > payloads.txt
+	rm nullpayloads.txt 2>/dev/null
 fi
 
 totalpayloads=`wc -l payloads.txt | cut -d " " -f 1`
 echo "Payload list created with $totalpayloads entries" 
 
+
+#MANDATORY URL connection testing routine:
+if [ false = "$G" ] ; then
+	#message in red
+	echo "Attempting a test connection to $uhostname" 
+	testresult=`curl $uhostname -v $curlproxy $httpssupport -w %{http_code}:%{size_download}`
+	testresultstatus=`echo $testresult | cut -d ":" -f 1`
+	testresultlength=`echo $testresult | cut -d ":" -f 2`
+	#echo "The status code was "$testresultstatus 
+	echo ""
+	echo "" 
+	if [[ $testresultstatus == "000" ]]
+		then echo "No meaningful headers returned: please check your settings or set the -G flag to skip the connection check."
+		exit
+	else
+		echo "Connection looks good."
+	fi		
+fi
 
 ### session file checking / creation code ###
 # the idea here is that the user should be comfy killing and resuming a scan.
@@ -645,11 +667,11 @@ fi
 rm ./parameters_to_skip.txt 2>/dev/null
 if [ true = "$S" ] ; then					
 	cat $parameterstoskip | while read quack; do
-		echo $quack >> parameters_to_skip.txt;
+		echo $quack >> parameters_to_skip.txt
 	done
 else 
 	cat ./payloads/default_parameters_to_skip.txt | while read quack; do
-		echo $quack >> parameters_to_skip.txt;
+		echo $quack >> parameters_to_skip.txt
 	done
 fi
 
@@ -678,73 +700,70 @@ echo "" > ./session/$safehostname.$safelogname.oldURL.txt
 echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
 
 cat cleanscannerinputlist.txt | while read i; do
-	methodical=`echo $i | cut -d " " -f 1`;
+	methodical=`echo $i | cut -d " " -f 1`
 	if [[ $i =~ $question$question && "$methodical" =~ "POST" ]] ; then
 		#increment the firstPOSTURIURL flag: 
-		firstPOSTURIURL=$((firstPOSTURIURL+1)); 
+		firstPOSTURIURL=$((firstPOSTURIURL+1)) 
 	fi
 	#echo "DEBUG! firstPOSTURIURL=$firstPOSTURIURL"
 	#echo "DEBUG! i= $i"
 	K=$((K+1)); #this is a request counter
 	#echo "debug outerloop"
-	continueflag=0;
-	alreadyscanned=0;
+	continueflag=0
+	alreadyscanned=0
 	#had to store some loop params in text files as they kept getting cleared down
 	#have to initialise these values at the start of the loop: 
-	sessionStorage=0;
+	sessionStorage=0
 	echo $sessionStorage > ./session/$safehostname.$safelogname.sessionStorage.txt
-	and1eq1=0;
+	and1eq1=0
 	echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
 
 	if [ true = "$L" ] ; then
 		# session liveness check was requested
-		checkpage=`curl $canaryRequest -o dump.txt --cookie $cookie $curlproxy $httpssupport`;
-		cat dump.txt 2>/dev/null | egrep -o $canaryRequestSearchString > search.txt;
-		search=`cat search.txt`;
+		checkpage=`curl $canaryRequest -o dump.txt --cookie $cookie $curlproxy $httpssupport`
+		cat dump.txt 2>/dev/null | egrep -o $canaryRequestSearchString > search.txt
+		search=`cat search.txt`
 		if [[ $search != "" ]]
-			then echo "Session is valid";
+			then echo "Session is valid"
 		else	
-			echo "Halting as session is invalid. Resume at request number "$K;
-			break;
+			echo "Halting as session is invalid. Resume at request number "$K
+			break
 		fi
 	fi
 	# resume routine to allow users to resume a scan from a given request number
 	if [ true = "$Q" ] ; then
 		if (($K<$resumeline))
-			then echo "Skipping request number "$K;
-			continue 3;
+			then echo "Skipping request number "$K
+			continue 3
 		fi
 	fi
-	#echo "debug PING"
-	method=`echo $i | cut -d " " -f 1`;
-	#echo "debug i "$i;
-	#echo "debug firstPOSTURIURL $firstPOSTURIURL";
+	method=`echo $i | cut -d " " -f 1`
 	
 	#work out what the page value is. for a firstPOSTURIURL value of 2, set the page to be the page AND the postURI params
 	#for everything else, the page is the page... 
 	if [ $firstPOSTURIURL == 2 ] ; then 
-		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1,2`;
+		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1,2`
 	else
-		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1`;
+		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1`
 	fi
 	#echo "debug page "$page;	
 	
 	#now work out the params that will be fuzzed in this loop iteration
 	if (($firstPOSTURIURL>0)) ; then
 		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`;
-			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`;
+			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
 		fi
 		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`;
-			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`;
+			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
+			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
 		fi
 	else #we are dealing with a simple GET request
-		params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`;
+		params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
 	fi
 	
 	#echo "debug params "$params;				
-	stringofparams=`echo $params | tr "&" " "`;
+	stringofparams=`echo $params | tr "&" " "`
 	
 	#echo `echo $stringofparams` >> ./session/$safehostname.$safelogname.siteanalysis.txt	
 
@@ -766,7 +785,6 @@ cat cleanscannerinputlist.txt | while read i; do
 				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
 			done
 			firstrunflag=1
-			#echo "first run!"
 			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
 		fi
 	else
@@ -777,7 +795,6 @@ cat cleanscannerinputlist.txt | while read i; do
 				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
 			done
 			firstrunflag=1
-			#echo "first run!"
 			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
 		else
 			#this branch is taken when a new URL comes along
@@ -790,28 +807,20 @@ cat cleanscannerinputlist.txt | while read i; do
 			echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
 		fi
 	fi
-	#echo "oldURL=$oldURL"
-	#echo "newURL=$newURL"
-
-	#echo "newParams=$newParams"
-	#echo "oldParams=$oldParams"
-
-	#echo "debug string of params "$stringofparams;
-	paramsarray=($stringofparams);
+	paramsarray=($stringofparams)
 	#echo "debug paramsarray "${paramsarray[*]};
 	output='';
-	arraylength=${#paramsarray[*]};
-	((arraylengthminusone=$arraylength-1));
+	arraylength=${#paramsarray[*]}
+	((arraylengthminusone=$arraylength-1))
 	#echo "debug arraylengthminusone " $arraylengthminusone
 	#this flag will track which param we are fuzzing (lets initialise it down to 0): 	
-	paramflag=0;
-	#sleep 0.5;
+	paramflag=0
 	##BEGINING OF PER-PARAMETER LOOP
 	for paramstring in ${paramsarray[*]}; do
 		#echo "DEBUG-perparam! sessionStorage=$sessionStorage"	
 		#this line is where we include the payload path string:
 		#here we are going to feed in our newly compiled payload list:
-		((payloadcounter=0));		
+		((payloadcounter=0))		
 		##BEGINING OF PER-PAYLOAD LOOP
 		cat payloads.txt | while read payload; do
 			#echo "DEBUG-perpayload! sessionStorage=$sessionStorage"	
@@ -820,7 +829,7 @@ cat cleanscannerinputlist.txt | while read i; do
 			#echo "debug payload counter: $payloadcounter"
 			# the output buffer will hold the final string of params including the injected param and the normal ones
 			# lets clear it down at the begining of the loop:
-			output='';
+			output=''
 			# for each parameter in a given URL we need to create a request where one of the parameters has 
 			# a payload injected but all the others are 'normal'. A normal request like this:
 			# http://www.foobar.com/foo.aspx?a=1&b=2&c=3
@@ -839,18 +848,18 @@ cat cleanscannerinputlist.txt | while read i; do
 				#echo "debug paramflag="$paramflag;
 				# below is the url encoding scheme which is applied to payloads - its not perfect, but works most of the time 
 				if (( $y == $paramflag )) ; then 
-					encodedpayload=`echo $payload | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`;
+					encodedpayload=`echo $payload | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
 					#inject the payload into this parameter:
-					output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$encodedpayload;
+					output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$encodedpayload
 					#echo "output after payload injection $output";
 					#echo "debug paramsarray at y " ${paramsarray[$y]};
-					paramtotest=`echo ${paramsarray[$y]} | cut -d "=" -f1`;
+					paramtotest=`echo ${paramsarray[$y]} | cut -d "=" -f1`
 					#echo "debug paramtotest: "$paramtotest;
 					#check to see if the current parameter should be skipped:
 					for paramcheck in `cat parameters_to_skip.txt`; do
 						if [[ "$paramcheck" == "$paramtotest" ]]; then
-							continueflag=1;
-							break;
+							continueflag=1
+							break
 						fi
 					done
 					#this code looks to see if we've already scanned this parameter of this URI:
@@ -861,130 +870,120 @@ cat cleanscannerinputlist.txt | while read i; do
 							#paramcheckold=`echo $paramcheck2| cut -d "=" -f 1`
 							#echo "checking if param matches $paramcheckold";
 							if [[ "$paramcheckold" == "$paramtotest" ]]; then
-								continueflag=1;
-								alreadyscanned=1;
+								continueflag=1
+								alreadyscanned=1
 								#echo "match: $paramcheckold = $paramtotest"
-								break;
+								break
 							fi
 						done
 					fi					
 				else 	
 					#we are not injecting this parameter, so print it out as normal:
-					output=$output${paramsarray[$y]};
+					output=$output${paramsarray[$y]}
 				fi
 				#this line works out if we need to append an & to the parameter value:
 				if (($y == $arraylengthminusone))
-					then foobar="foobar";
+					then foobar="foobar"
 					#no need to add a '&' suffix to $output as no more params left to add...
 				else 
-					output=$output"&"; 
+					output=$output"&" 
 				fi
 				#if we are testing the last parameter, we have a full list of params ready to go to the scanner:				
 				if (($y == $arraylengthminusone))
 					###IMPORTANT: this instruction MUST BE HERE!!!:
-					then asd=1; 
-					r=$uhostname$page"?"$output;
-					#echo $r;
-					i=$uhostname$page"?"$params;
-					#echo $i;					
-					# this is where we stop dicking about with URLs and hand them off to CURL
-					#but first we need to know if this is a POST or a GET
-											
-					#echo "method is: "$method;
-					#echo "continueflag2="$continueflag;
+					then asd=1 
+					#create two requests - one clean, one evil
+					r=$uhostname$page"?"$output
+					i=$uhostname$page"?"$params
 					if (( $continueflag == 1 )); then
 						if (( $alreadyscanned == 1 )); then
-							alreadyscanned=0;
+							alreadyscanned=0
 							if [[ true != "$F" ]]; then
-								continueflag=0;
-								continue;
+								continueflag=0
+								continue
 							fi
 						else
-							echo "Skipping param $paramtotest as it's on the don't scan list";
-							continueflag=0;
-							continue;
+							echo "Skipping param $paramtotest as it's on the don't scan list"
+							continueflag=0
+							continue
 						fi
-					fi										
-
-					#sleep 1;
-					# IDEA: use a setcleanrequest flag here so you only send one good request per URL instead of one per parameter
-					# weirdly, this flag kept getting set back to zero, so im going to write it to a file. i know this is lame but it might work
+					fi
+					# end of request preparation section
+					# beginning of request section
+					# this section is written confusingly:
+					# first we do clean & evil GET requests
+					# then we do clean & evil POST requests
+					# but POST requests are split out three ways: normal POST, POST URI params, POST data params
+					# also, we only send one good request per URL instead of one per parameter
 					sessionStorage=`cat ./session/$safehostname.$safelogname.sessionStorage.txt 2>/dev/null`
 					if [[ $method != "POST" ]]; then #we're doing a get - simples					
-						#echo "debug y="$y;						
-						#echo "debug paramflag="$paramflag;
-						#echo "debug sessionStoragebeforeif="$sessionStorage;
 						if [[ "$sessionStorage" = 0 ]] ; then
 							#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-							sessionStorage=1;
+							sessionStorage=1
 							echo $sessionStorage > ./session/$safehostname.$safelogname.sessionStorage.txt
 							# send a 'normal' request
-							and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`; 
+							and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 							echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
-							echo "Testing URL $K of $entries GET $i";
+							echo "Testing URL $K of $entries GET $i"
 						fi
-						# send an 'evil' request
-						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload";
-						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-						#echo "EVIL GET " $r; 
+						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+					# right, thats it for clean and evil GET requests. now POSTs:
 					else	# we're doing a POST - not so simple...
-						#echo "debug y="$y;
-						#echo "debug paramflag="$paramflag;
 						# we only need to send a clean request if we are doing time diffing and we havent already sent one for this URL
+						# TODO move the below IF to the next level up:
+						# it should encapsulate both clean GETs and clean POSTS, not just clean POSTS
 						if [[ "$sessionStorage" == 0 && true = "$e" || true = "$b" ]] ; then
 							# send a 'normal' POST request
 							if (($firstPOSTURIURL>0)) ; then
 								if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 									#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-									sessionStorage=1;
+									sessionStorage=1
 									echo $sessionStorage > ./session/$safehostname.$safelogname.sessionStorage.txt
 									echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
-									echo "Testing URL $K of $entries POST $uhostname$page?$params??$static"; 	
+									echo "Testing URL $K of $entries POST $uhostname$page?$params??$static" 	
 								fi
 								if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
 									and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-									sessionStorage=1;
+									sessionStorage=1
 									echo $sessionStorage > ./session/$safehostname.$safelogname.sessionStorage.txt
 									echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
-									echo "Testing URL $K of $entries POST $uhostname$page??$params"; 
+									echo "Testing URL $K of $entries POST $uhostname$page??$params" 
 								fi
 							else #just a normal POST:
-								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 								#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-								sessionStorage=1;
+								sessionStorage=1
 								echo $sessionStorage > ./session/$safehostname.$safelogname.sessionStorage.txt
 								echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
-								echo "Testing URL $K of $entries POST $uhostname$page?$params"; 		
+								echo "Testing URL $K of $entries POST $uhostname$page?$params" 		
 							fi						
 						fi
 						# send an 'evil' POST request
 						if (($firstPOSTURIURL>0)) ; then
 							if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-								and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"; 	
+								and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"	
 							fi
 							if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-								and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"; 
+								and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 							fi
-						else #just a normal POST:
-							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload";
-							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-							#echo "EVIL POST " $uhostname$page"?"$output;
-						
+						else #just a normal evil POST:
+							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 						fi
 					fi
-					#echo "DEBUG! sessionStorage=$sessionStorage"
-					#echo "DEBUG "$method $i;
-					#echo "DEBUG "$method $r;
-					#check the response code and alert the user if its not 200:
+					#end of request section
+					#beginning of response parsing section
+
+					#check the response code and alert the user if its not 200:					
 					reponseStatusCode=`echo $and1eq2 | cut -d ":" -f 1`;
 					if [[ "$reponseStatusCode" != "200" && "$reponseStatusCode" != "404" ]]
 						then echo "ALERT: Status code "$reponseStatusCode" response";
 					fi 
-					#beginning of response parsing section
-					#xss testing IF statement
+					#xss testing subsection
 					if [ true = "$Y" ] ; then
 						cat ./dumpfile | grep -i -o "$payload" > search.txt;
 						search=`cat search.txt`;
@@ -1010,7 +1009,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							fi							
 						fi
 					fi	
-					#this code scans responses for common error strings:			
+					#this subsection scans responses for common error strings:			
 					cat ./payloads/errors-two-words.txt | while read z; do 
 						cat ./dumpfile | egrep -i -o $z > search.txt;
 						search=`cat search.txt`;
@@ -1022,125 +1021,110 @@ cat cleanscannerinputlist.txt | while read i; do
 							else
 								if (($firstPOSTURIURL>0)) ; then
 									if [ $firstPOSTURIURL == 1 ] ; then
-										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
+										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt
+										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
 										tput sgr0 # Reset attributes.
 									else
-										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
-										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
+										echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt
+										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
 										tput sgr0 # Reset attributes.
 									fi
 								else
 									#normal post
-									echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
+									echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt
 									echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
 									tput sgr0 # Reset attributes.
 								fi
 							fi		
 						fi
 					done
-					#end of code that scans for common error strings
-										
-					#new response length logic goes in here:
-					#echo "DEBUG: payload: $payload"
+					#end of subsection that scans for common error strings									
+					#beginning of response lenth diffing section
 					if [[ "$payload" =~ "345=345" || "$payload" =~ "345'='345" || "$payload" =~ "dfth=dfth" ]]
-						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`;
-						#echo "debug: SQLequallength "$SQLequallength
+						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
 					if [[ "$payload" =~ "345=456" || "$payload" =~ "345'='456" || "$payload" =~ "dfth=fghj" ]]
-						then SQLunequallength=`echo $and1eq2 | cut -d ":" -f 2`;
-						#echo "debug: SQLequallength "$SQLunequallength
+						then SQLunequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
 					if [[ "$SQLequallength" != "" && "$SQLunequallength" != "" ]]
 						then ((answer=$SQLequallength-$SQLunequallength))
-						SQLequallength="";
-						SQLunequallength="";
+						SQLequallength=""
+						SQLunequallength=""
 						if [ $answer -gt 4 ] || [ $answer -lt -4 ] ; then
+						#this line writes out the difference between the responses from the 'clean' and 'evil' requests: 
+						diff ./dump ./dumpfile --suppress-common-lines > ./responsediffs/$safefilename-respdiff-R-$K-P-$payloadcounter.txt
 							if [[ $method != "POST" ]]; then #we're doing a get - simples 
-								echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
+								echo "[LENGTH-DIFF $answer REQ:$K $safefilename-respdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt
 								echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$output" ;
 								tput sgr0 # Reset attributes.
 							else
 								if (($firstPOSTURIURL>0)) ; then
 									if [ $firstPOSTURIURL == 1 ] ; then
-										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
+										echo "[LENGTH-DIFF $answer REQ:$K $safefilename-respdiff-R-$K-P-$payloadcounter.txt ] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt
 										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
 										tput sgr0 # Reset attributes.
 									else
-										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
+										echo "[LENGTH-DIFF $answer REQ:$K $safefilename-respdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt
 										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
 										tput sgr0 # Reset attributes.
 									fi
 								else
-										#normal post
-										echo "[LENGTH-DIFF $answer REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
-										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
-										tput sgr0 # Reset attributes.
+									#normal post
+									echo "[LENGTH-DIFF $answer REQ:$K $safefilename-respdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt
+									echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF $answer REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
+									tput sgr0 # Reset attributes.
 								fi
 							fi
 						fi
 					fi
-			
+					#end of response lenth diffing subsection
+					#beginning status code and error checking subsection
 					#this searches through the response looking for a provided error string:
-					cat ./dumpfile | egrep -o "$ErrorString" > search.txt;
-					search=`grep "$ErrorString" search.txt`;
+					cat ./dumpfile | egrep -o "$ErrorString" > search.txt
+					search=`grep "$ErrorString" search.txt`
 					if [[ $search == "$ErrorString" ]]
-						then echo "Application error page - skipping "$r >> ./output/$safefilename$safelogname.txt;
-					elif [[ $search != "$ErrorString" ]]
-					#continue only if the default error page has not been found run the scan...
-						# the new result format is 404:4040
-						# separate out the http status code from the results:
-						then and1eq2status=`echo $and1eq2 | cut -d ":" -f 1`;
-						((status=$and1eq2status));
+						then echo "Application error page - skipping "$r >> ./output/$safefilename$safelogname.txt
+					elif [[ $search != "$ErrorString" ]] ; then
+						#continue only if the default error page has not been found run the scan...
+						# the new result format is 404:4040:0.404
+						# separate out the http status code from the response:
+						and1eq2status=`echo $and1eq2 | cut -d ":" -f 1`
+						((status=$and1eq2status))
 						if (($status == "500")) 
-							then echo "[STATUS-CODE: $status REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.status.txt; 								#echo "[STATUS-CODE: $status] $method URL: $uhostname$page"?"$output" ;
+							then echo "[STATUS-CODE: $status REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.status.txt 				
 						fi
-						if (($status == "302")) 
-							then echo "[STATUS-CODE: $status REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.status.txt;
-							###echo "[STATUS-CODE: $status] $method URL: $uhostname$page"?"$output" ;
-						fi
-						#put time diff scan here
+						#if (($status == "302")) 
+						#	then echo "[STATUS-CODE: $status REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.status.txt
+						#fi
+						#end of status code and error checking subsection
+						#beginning of time diff scan subsection
 						if [[ true = "$e" || true = "$b" ]] ; then
 							and1eq1=`cat ./session/$safehostname.$safelogname.and1eq1.txt 2>/dev/null`
-							and1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`;
-							and1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`;
-
-							#echo "and1eq1time=$and1eq1time"
-							#echo "and1eq1=$and1eq1"
-							#echo "and1eq2time=$and1eq2time"
-							#one problem was that the time is returned in ms
-							#the substr below returns the result in s 
-							#injected_time=`expr substr $and1eq2time 1 1`;
-							
-							#normalreq_time=`expr substr $and1eq1time 1 1`;
-							#((time_diff=injected_time-normalreq_time));
-							((time_diff=and1eq2time-and1eq1time));
-							#the below two lines are from the original absolute time diff:
-							#answer=`expr substr $and1eq2time 1 1`;
-							#if (( $answer >= $timedelaythreshhold ))
-							#if (($injected_time>$normalreq_time)) ; then
+							and1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`
+							and1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`
+							((time_diff=and1eq2time-and1eq1time))
 							if (($and1eq2time>$and1eq1time)) ; then
 								if [[ $method != "POST" ]] ; then #we're doing a get - simples
-									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt; 
-									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output" ;
+									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt 
+									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
 									tput sgr0 # Reset attributes.
 								else
 									if (($firstPOSTURIURL>0)) ; then
 										if [ $firstPOSTURIURL == 1 ] ; then
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt;
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output";
+											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safefilename$safelogname.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
 											tput sgr0 # Reset attributes.
 										else
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt;
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
+											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safefilename$safelogname.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
 											tput sgr0 # Reset attributes.
 										fi
 									else
 										#normal post
-										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt;
-										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
+										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt
+										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
 										tput sgr0 # Reset attributes.
 									fi
 								fi
@@ -1149,14 +1133,14 @@ cat cleanscannerinputlist.txt | while read i; do
 						#end of time diff scan	
 					fi
 					#gotta clear down the output buffer:					
-					output='';
+					output=''
 				fi						
 			done 
 		#echo "DEBUG 001 sessionStorage=$sessionStorage"
 		##END OF PER-PAYLOAD LOOP:		
 		done
 	#echo "DEBUG 002 sessionStorage=$sessionStorage"
-	((paramflag=$paramflag+1));
+	((paramflag=$paramflag+1))
 	##END OF PER-PARAMETER LOOP:
 	done
 ##END OF PER-URL LOOP:
@@ -1218,7 +1202,7 @@ cat ./output/$safefilename$safelogname.status.txt 2>/dev/null | sort | uniq >> .
 echo "<html>" >> ./output/$safefilename$safelogname.html
 echo "<head>" >> ./output/$safefilename$safelogname.html
 echo "<title>sqlifuzzer results page</title>" >> ./output/$safefilename$safelogname.html
-echo "<body>" >> ./output/$safefilename$safelogname.html
+echo "<body bgcolor="Silver">" >> ./output/$safefilename$safelogname.html
 echo "<H3>sqlifuzzer test results</H3>" >> ./output/$safefilename$safelogname.html
 echo "Output file: ./output/$safefilename$safelogname.txt" >> ./output/$safefilename$safelogname.html
 echo "<br>" >> ./output/$safefilename$safelogname.html
@@ -1235,6 +1219,7 @@ echo "Compiling report to create ./output/$safefilename$safelogname.html"
 cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 	echo -n "."
 	message=`echo $aLINE|cut -d "]" -f1|cut -d "[" -f2`
+	#echo $message
 	fullrequest=`echo $aLINE|cut -d "]" -f2`
 	method=`echo $fullrequest | cut -d " " -f1`
 	request=`echo $fullrequest | cut -d " " -f3`
@@ -1325,6 +1310,12 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 			echo "</form> " >> ./output/$safefilename$safelogname.html
 		fi
 	fi
+	if [[ "$message" =~ "LENGTH-DIFF" ]] ; then
+		echo "<br>" >> ./output/$safefilename$safelogname.html
+		respdiff=`echo $message | cut -d " " -f 4`
+		echo " <a href="./../responsediffs/$respdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
+		echo "<br>" >> ./output/$safefilename$safelogname.html	
+	fi
 	echo "------------------------------------------------------------------" >> ./output/$safefilename$safelogname.html
 	echo "<br>" >> ./output/$safefilename$safelogname.html
 done
@@ -1340,4 +1331,4 @@ echo "</html>" >> ./output/$safefilename$safelogname.html
 echo ""
 echo "Done. HTML report written to ./output/$safefilename$safelogname.html"
 echo "Attempting to open ./output/$safefilename$safelogname.html with firefox"
-firefox ./output/$safefilename$safelogname.html & 2>/dev/null
+firefox ./output/$safefilename$safelogname.html 2>/dev/null &
