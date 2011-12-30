@@ -82,3 +82,4 @@ Warning..mysql_query
 Warning..pg_connect
 Warning..Supplied
 You.have.an.error.in.your.SQL.syntax
+invalid.in.the.select.list.because
