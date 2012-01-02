@@ -261,6 +261,57 @@ else
 fi
 
 
+### session file checking / creation code ###
+# the idea here is that the user should be happy killing and resuming a scan.
+# this is facilitated by saving the scan progress (specifically the request 
+# or "URL number" last scanned) in a session file and then checking for the 
+# presence of this file whenever a scan is launched
+
+if [ true != "$Q" ] ; then
+	#echo "Checking for session file."
+	if [ true = "$f" ] ; then
+		rm ./session/$safehostname.$safelogname.session.txt 2>/dev/null
+	fi
+	session=''
+	session=`cat ./session/$safehostname.$safelogname.session.txt 2>/dev/null`
+	if [[ "$session" != "" ]]; then
+		echo "Session file found at ./session/$safehostname.$safelogname.session.txt"
+		echo "Looks like you've scanned this host before." 	
+		echo "Do you want to resume from the last URL scanned: ($session)?"
+		echo -n "Enter y at the prompt to resume from URL $session or n to start from the first URL: "
+		read choice
+		if [[ "$choice" == "y" ]]; then
+			echo "Resuming scan from URL $session"		
+			resumeline=$session
+			Q=true
+		else 
+			echo "Starting from the first URL"
+			resumeline=0
+		fi
+		# put your input file recovery code here 
+		#echo "Session file found at ./session/$safehostname.$safelogname.session.txt"
+		#./session/$safehostname.$safelogname.input
+		#echo "Checking for .input file"
+		inputCheck=`wc ./session/$safehostname.$safelogname.input 2>/dev/null` 
+		if [[ "$inputCheck!" != "" ]] ; then
+			echo "Input file found at ./session/$safehostname.$safelogname.input"
+			echo -n "Enter y at the prompt to create a fresh .input file or n to use the previously created .input file: "
+			read choice
+			if [[ "$choice" == "y" ]]; then
+				echo "Re-using the .input file at ./session/$safehostname.$safelogname.input"		
+				I=true
+				inputFile="./session/$safehostname.$safelogname.input"
+			else 
+				echo "Creating a fresh .input file from the burp log"
+			fi
+		fi
+	else 
+		echo "Session file not found. Creating ./session/$safehostname.$safelogname.session.txt and starting from the first URL"
+	fi
+else
+	echo "Resuming scan at request $resumeline"
+fi
+
 #################burplog parser section#########################
 
 ########BURPLOG PARSING SECTION############
@@ -438,14 +489,14 @@ if [ true = "$T" ] ; then
 	echo "The status code was "$testresultstatus 
 	echo "The response length was "$testresultlength
 	echo "The output has been saved as testoutput.html" 
-	exit 
+	exit
 fi
 
 #An input file has been specified:
 if [ true = "$I" ] ; then
 	rm scannerinputlist.txt 2>/dev/null
-	echo "Parsing input file" $I
-	cat $inputFile | while read quack; do
+	echo "Parsing input file" $inputFile
+	cat "$inputFile" | while read quack; do
 		echo $quack >> scannerinputlist.txt
 	done
 	echo "Parsed input file $inputFile" 
@@ -485,21 +536,26 @@ if [ true = "$P" ] ; then
 	exit
 fi
 
-rm scannerinputlist.txt 2>/dev/null
 
 entries=`wc -l cleanscannerinputlist.txt | cut -d " " -f 1`
 
 #cat cleanscannerinputlist.txt
 
+echo ""
 echo "Scan list created with $entries entries" 
+echo "Saving a .input file (including risky requests) to: ./session/$safehostname.$safelogname.input" 
+cp scannerinputlist.txt "./session/$safehostname.$safelogname.input"
+
+rm scannerinputlist.txt 2>/dev/null
+
 
 #echo "debugGOT  HERE"
 #exit
 
 exceptions=`cat exceptionlist.txt 2>/dev/null`
 if [[ "$exceptions" != "" ]] ; then
-	echo "The following potentially risky URLs will be excluded from scanning. Run the scan again using the -o option to include them."
 	cat exceptionlist.txt 2>/dev/null 
+	echo "The URLs listed above are potentially risky and will be excluded from scanning. Run the scan again using the -o option to include them."
 	echo -n "Enter y to continue or n to quit: "
 	read keyinput
 		if [[ "$keyinput" == "n" ]] ; then
@@ -629,39 +685,7 @@ if [ false = "$G" ] ; then
 	fi		
 fi
 
-### session file checking / creation code ###
-# the idea here is that the user should be comfy killing and resuming a scan.
-# this is facilitated by saving the scan progress (specifically the request 
-# or "URL number" last scanned) in a session file and then checking for the 
-# presence of this file whenever a scan is launched
-
-if [ true != "$Q" ] ; then
-	echo "Checking for session file."
-	if [ true = "$f" ] ; then
-		rm ./session/$safehostname.$safelogname.session.txt 2>/dev/null
-	fi
-	session=''
-	session=`cat ./session/$safehostname.$safelogname.session.txt 2>/dev/null`
-	if [[ "$session" != "" ]]; then
-		echo "Session file found at ./session/$safehostname.$safelogname.session.txt" 	
-		echo "Do you want to resume from the last URL scanned: ($session)?"
-		echo -n "Enter y at the prompt to resume from URL $session or n to start from the first URL: "
-		read choice
-		if [[ "$choice" == "y" ]]; then
-			echo "Resuming scan from URL $session"		
-			resumeline=$session
-			Q=true
-		else 
-			echo "Starting from the first URL"
-			resumeline=0
-		fi
-	else 
-		echo "Session file not found. Creating ./session/$safehostname.$safelogname.session.txt and starting from the first URL"
-	fi
-else
-	echo "Resuming scan at request $resumeline"
-fi
-
+#original location of session file check
 
 #this IF statement creates list of params to skip based on a user-supplied list, or using the default list.
 rm ./parameters_to_skip.txt 2>/dev/null
@@ -1052,7 +1076,9 @@ cat cleanscannerinputlist.txt | while read i; do
 						then ((answer=$SQLequallength-$SQLunequallength))
 						SQLequallength=""
 						SQLunequallength=""
-						if [ $answer -gt 4 ] || [ $answer -lt -4 ] ; then
+						#if [ $answer -gt 4 ] || [ $answer -lt -4 ] ; then
+						# the payload is an or 1=1: if its not longer, its not worked
+						if [ $answer -gt 4 ] ; then
 						#this line writes out the difference between the responses from the 'clean' and 'evil' requests: 
 						diff ./dump ./dumpfile --suppress-common-lines > ./responsediffs/$safefilename-respdiff-R-$K-P-$payloadcounter.txt
 							if [[ $method != "POST" ]]; then #we're doing a get - simples 
