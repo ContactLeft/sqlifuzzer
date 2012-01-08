@@ -313,6 +313,7 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 	badparams=`echo "$outputstore" | replace "$encodedpayload" "0$quote%20union%20select%20$nullstring$end"`
 #	badparams=`echo "$outputstore"`
 	requester
+	rm ./selcheck1
 	cp ./dump ./selcheck1
 	newencodedpayload=`echo $inj3ct | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
 	badparams=`echo "$badparams" | replace "$selinject" "$newencodedpayload"`
@@ -556,22 +557,29 @@ fi
 
 #no burplog or input file specified:
 if [[ "$burplog" == "" && "$inputFile" == "" && "$testurl" == "" ]] ; then
-	echo "I need a burplog or an input file to parse." >&2
+	echo "FATAL: I need a burplog or an input file to parse." >&2
 	echo "-l <burplog> or -I <input file>">&2
 	exit
 fi
 
 #no hostname provided:
 if [[ "$uhostname" == "" && "$burplog" == "" && "$testurl" == "" ]]; then
-	echo "I need a hostname (no trailing slash)." >&2
+	echo "FATAL: I need a hostname (no trailing slash)." >&2
 	echo "-t <host>">&2
+	exit
+fi
+
+#hostname has a trailing slash:
+lastchar="${uhostname: -1}"
+if [[ "$lastchar" == "/" ]] ; then
+	echo "FATAL: hostname $uhostname has a trailing slash. Please re-run the scan and remove the slash at the end of the hostname."
 	exit
 fi
 
 #if we are not creating an input file from a burp log (-P), and no payloads have been specified, ask for a payload:
 if [[ true != "$P" && true != "$T" && true != "$Y" && true != "$s" && true != "$n" && true != "$q" && true != "$e" && true != "$b" && true != "$C" && true != "$r" && true != "$j" ]]; then
-	echo "I need a payload type" >&2
-	echo "-s, -n, -q, -r, -e, -b, -Y, -C" >&2
+	echo "FATAL: I need a payload type" >&2
+	echo "Some examples are: -s, -n, -q, -r, -e, -b, -Y, -C" >&2
 	exit
 fi
 
@@ -592,7 +600,6 @@ else
 	httpssupport=""	
 fi
 
-#TODO theres something fishy in the below??? figure it out and sort it...
 #unless we are using an .input file, the safelogname should be the $burplog path value
 if [[ true != "$I" ]]; then
 	safelogname=`echo $burplog | replace " " "" | replace "/" "SLASH" | replace ":" "." | replace '\' ''`
@@ -1291,7 +1298,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
 							echo "Testing URL $K of $entries GET $i"
 						fi
-						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+						#echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 					# right, thats it for clean and evil GET requests. now POSTs:
 					else	# we're doing a POST - not so simple...
