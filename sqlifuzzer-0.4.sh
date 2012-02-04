@@ -1,5 +1,4 @@
 #!/bin/bash
-# ./sqli-fuzzer30.sh
 
 #############global variables##############
 
@@ -18,7 +17,29 @@ encodeme()
 
 encodeoutput=`echo $encodeinput  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
 
-decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/"`; 
+if [ true = "$K" ] ; then
+	encodeoutput=`echo $encodeoutput | replace "=" "%20like%20"`
+fi
+
+if [ true = "$O" ] ; then
+	encodeoutput=`echo $encodeoutput | replace "select" "se%2f%2a%2a%2flect" | replace "union" "uni%2f%2a%2a%2fon" | replace "and" "an%2f%2a%2a%2fd" | replace "or" "o%2f%2a%2a%2fr" | replace "order" "ord%2f%2a%2a%2fer" | replace "by" "b%2f%2a%2a%2fy" | replace "delay" "del%2f%2a%2a%2fay" | replace "dual" "du%2f%2a%2a%2fal" | replace "exec" "ex%2f%2a%2a%2fec" | replace "from" "fr%2f%2a%2a%2fom" | replace "having" "hav%2f%2a%2a%2fing" | replace "waitfor" "wai%2f%2a%2a%2ftfor" | replace "case" "ca%2f%2a%2a%2fse" | replace "when" "wh%2f%2a%2a%2fen" | replace "then" "th%2f%2a%2a%2fen" | replace "else" "el%2f%2a%2a%2fse" | replace "end" "en%2f%2a%2a%2fd" | replace "len" "le%2f%2a%2a%2fn" | replace "ascii" "as%2f%2a%2a%2fcii" | replace "substr" "su%2f%2a%2a%2fbstr"`
+fi
+
+if [ true = "$U" ] ; then
+	encodeoutput=`echo $encodeoutput | replace "select" "sElEcT" | replace "union" "uNiOn" | replace "and" "aNd" | replace "or" "oR" | replace "order" "oRdEr" | replace "by" "bY" | replace "delay" "dElAy" | replace "dual" "dUaL" | replace "exec" "eXeC" | replace "from" "fRoM" | replace "having" "hAvInG" | replace "waitfor" "wAiTfOr" | replace "case" "cAsE" | replace "when" "wHeN" | replace "then" "tHeN" | replace "else" "eLsE" | replace "end" "eNd" | replace "len" "lEn" | replace "ascii" "aScIi" | replace "substr" "sUbStR" | replace "like" "lIkE"`
+fi
+
+if [ true = "$Y" ] ; then
+	encodeoutput=`echo $encodeoutput | replace "%20" "%2f%2a%2a%2f"`
+fi
+
+if [ true = "$V" ] ; then #double URL encoding
+	encodeoutput=`echo $encodeoutput | replace "%" "%25"`
+fi
+
+#--------------
+
+decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/" | replace "%2a" "*"`; 
 
 }
 
@@ -1373,10 +1394,15 @@ D=false
 G=false
 H=false
 Z=false
+Y=false
+V=false
+U=false
+O=false
+K=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZ namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOK namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1493,6 +1519,21 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZ namer; do
     Z) # DEBUG mode activated
 	Z=true  
 	;;
+    Y) # Filter Evasion SQL comments for spaces
+	Y=true  
+	;;
+    V) # Filter Evasion double URL encoding
+	V=true  
+	;;
+    U) # Filter Evasion cAmEl cAsE
+	U=true  
+	;;
+    O) # Filter Evasion MYSQL comments in SQL commands
+	O=true  
+	;;
+    K) # Filter Evasion '=' => 'like'
+	K=true  
+	;;
     esac
 done
 
@@ -1520,9 +1561,13 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "  -e SQL delay injection"
         echo "  -b OS Command injection"
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
-        echo "  -Y XSS injection (very basic!)"
-	echo "Optional arguments:"
+        #echo "  -Y XSS injection (very basic!)"
 	echo "   Payload modifiers:"
+	echo "  -Y Filter evasion: inline SQL comment instead of spaces    ' ' => '/**/'"
+	echo "  -V Filter evasion: double URL encoding                     '%27' => '%2527'"
+	echo "  -U Filter evasion: camel case                              'select' => 'sElEcT'"
+	echo "  -O Filter evasion: MYSQL inline comments                   'select' => 'se/**/lect' "
+	echo "  -N Filter evasion: replace equals operator with like       '=' => 'like' "
 	echo "  -A Prepend payloads with %00"
 	echo "  -B Prepend payloads with %0d%0a"
 	echo "  -W HTTP Method Swapping mode: GET requests are converted to POSTs and vice-versa. These new requests are tested IN ADDITION to the original."
@@ -1539,7 +1584,7 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "  -S <file containing parameters to skip, each parameter on a seperate line> Define one or many parameters NOT to scan"
 	echo "  -o Override the typical behaviour of excluding any requests which include the following phrases: logoff, logout, exit, signout, delete, signoff"
 	echo "  -F Override the typical behaviour of skipping parameters that have already been scanned. Increases scan time, but scans every parameter of every request"
-	echo "  -R RESTful paramters - !!Very Beta!!"
+	echo "  -R RESTful paramters - horribly broken: do not use"
 	echo "  -Z DEBUG mode - very verbose output - useful for script debugging"
 	echo "Some examples:"
 	echo "A string, numeric and time-based SQL injection scan based on a burp log:"
