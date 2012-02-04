@@ -15,9 +15,11 @@ ErrorString="foo123rewerwer435345345345"
 # function definitions
 encodeme()
 {
-encodeoutput=`echo $encodeinput  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"`
 
-decodeoutput=`echo $decodeoutput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/"`;
+encodeoutput=`echo $encodeinput  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
+
+decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/"`; 
+
 }
 
 #encodeinput=foo
@@ -1369,10 +1371,12 @@ f=false
 o=false
 D=false
 G=false
+H=false
+Z=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FG namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZ namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1479,6 +1483,16 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FG namer; do
     G) # Dont perform the normal connection test
         G=true
 	;;
+    H) # Filter evasion: spaces become comments /**/
+        H=true
+	;;
+    R) # RESTful parameters mode. F is set to true to override parameter skipping - as we cannot detect a page, we cannot apply param skipping 
+        R=true
+	F=true  
+	;;
+    Z) # DEBUG mode activated
+	Z=true  
+	;;
     esac
 done
 
@@ -1525,6 +1539,8 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "  -S <file containing parameters to skip, each parameter on a seperate line> Define one or many parameters NOT to scan"
 	echo "  -o Override the typical behaviour of excluding any requests which include the following phrases: logoff, logout, exit, signout, delete, signoff"
 	echo "  -F Override the typical behaviour of skipping parameters that have already been scanned. Increases scan time, but scans every parameter of every request"
+	echo "  -R RESTful paramters - !!Very Beta!!"
+	echo "  -Z DEBUG mode - very verbose output - useful for script debugging"
 	echo "Some examples:"
 	echo "A string, numeric and time-based SQL injection scan based on a burp log:"
 	echo "  $0 -t http://www.foo.bar -l example-burp.log -sne"
@@ -1625,7 +1641,7 @@ if [ true != "$Q" ] ; then
 			echo "Input file found at ./session/$safehostname.$safelogname.input"
 			echo -n "Enter y at the prompt to create a fresh .input file or n to use the previously created .input file: "
 			read choice
-			if [[ "$choice" == "y" ]]; then
+			if [[ "$choice" == "n" ]]; then
 				echo "Re-using the .input file at ./session/$safehostname.$safelogname.input"		
 				I=true
 				inputFile="./session/$safehostname.$safelogname.input"
@@ -1696,7 +1712,8 @@ if [[ true != "$I" && true != "$T" ]] ; then
 		if [ $captureflag == 1 ]; then
 		# we are capturing burp log info:
 		# first question: is it a POST or GET request?
-			if [[ $LINE =~ $get && $LINE =~ $question ]]; then
+			#if [[ $LINE =~ $get && $LINE =~ $question ]]; then       # modified the below to allow URLs without ?'s for restful mode
+			if [[ $LINE =~ $get ]]; then
 				# GET detected the next line takes a line like:"
 				# GET /foobar.asp?snafu=yep HTTP/1.1
 				# and outputs:
@@ -1705,7 +1722,9 @@ if [[ true != "$I" && true != "$T" ]] ; then
 				echo $getline >> 1scannerinputlist.txt
 			fi
 			#this code includes support for POST URI parameters:
-			if [[ $LINE =~ $post && $LINE =~ $question ]]; then
+			if [[ $LINE =~ $post && $LINE =~ $question ]]; then      
+			# added the line below to allow URLs without ?'s for restful mode
+			#if [[ $LINE =~ $post ]]; then             # this lead to errors tho so removed it again and restored the original
 				# POST with URI parameters detected. Store in the 'outer' variable, a line such as:"
 				# /foobar.asp?snafu=yep				
 				outer=`echo "$LINE" | cut -d " " -f 2`;
@@ -1743,7 +1762,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 			fi
 		fi
 		
-		#echo "Line $N = $LINE"
+		#if [ true = "$Z" ] ; then echo "Line $N = $LINE" ;fi
 		if [[ $LINE =~ $equalcheck ]]; then
 			# lineflag increments with long lines of '=' characters. burp logs use three of these lines to capture a single request.
 			# when lineflag=1 we have a request, when lineflag=2 we capture the next line, when lineflag=3 we have seen the whole of the request: 
@@ -1801,11 +1820,38 @@ if [[ true != "$I" && true != "$T" ]] ; then
 			echo $LINE >> scannerinputlist.txt
 		fi
 	done
-			
+
+	#get rid of any requests without ?'s unless F:
+	if [[ true != "$R" ]]; then # ...unless F (override param skipping) is set:
+		cat scannerinputlist.txt | while read LINE; do
+			echo -n "."
+			if [[ $LINE =~ $question ]]; then
+				echo $LINE >> 4scannerinputlist.txt
+			else
+				uyrgf=1
+			fi
+		done
+		cp 4scannerinputlist.txt scannerinputlist.txt
+	fi
+	
+	#get rid of any requests WITH ?'s IF F:
+	if [[ true == "$R" ]]; then # ...if F (override param skipping) is set:
+		cat scannerinputlist.txt | while read LINE; do
+			echo -n "."
+			if [[ $LINE =~ $question ]]; then
+				uyrgf=1
+			else
+				echo $LINE >> 4scannerinputlist.txt
+			fi
+		done
+		cp 4scannerinputlist.txt scannerinputlist.txt
+	fi
+		
 	#as 1scannerinputlist.txt (and its friends) is accumulative by nature, it must be cleared down 
 	rm 1scannerinputlist.txt 2>/dev/null	
 	rm 2scannerinputlist.txt 2>/dev/null	
 	rm 3scannerinputlist.txt 2>/dev/null
+	rm 4scannerinputlist.txt 2>/dev/null
 fi
 
 #OPTIONAL URL connection testing routine:
@@ -2053,15 +2099,15 @@ echo "" > ./session/$safehostname.$safelogname.oldURL.txt
 echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
 
 cat cleanscannerinputlist.txt | while read i; do
+	if [ true = "$Z" ] ; then echo "DEBUG! Starting outerloop iteration" ;fi
 	methodical=`echo $i | cut -d " " -f 1`
 	if [[ $i =~ $question$question && "$methodical" =~ "POST" ]] ; then
 		#increment the firstPOSTURIURL flag: 
 		firstPOSTURIURL=$((firstPOSTURIURL+1)) 
 	fi
-	#echo "DEBUG! firstPOSTURIURL=$firstPOSTURIURL"
-	#echo "DEBUG! i= $i"
+	if [ true = "$Z" ] ; then echo "DEBUG! firstPOSTURIURL: $firstPOSTURIURL" ; fi
+	if [ true = "$Z" ] ; then echo "DEBUG! i: $i" ;fi
 	K=$((K+1)); #this is a request counter
-	#echo "debug outerloop"
 	continueflag=0
 	alreadyscanned=0
 	#had to store some loop params in text files as they kept getting cleared down
@@ -2099,27 +2145,51 @@ cat cleanscannerinputlist.txt | while read i; do
 	else
 		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1`
 	fi
-	#echo "debug page "$page;	
-	
-	#now work out the params that will be fuzzed in this loop iteration
-	if (($firstPOSTURIURL>0)) ; then
-		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
-			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
-		fi
-		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
-			static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
-		fi
-	else #we are dealing with a simple GET request
-		params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
-	fi
-	
-	#echo "debug params "$params;				
-	stringofparams=`echo $params | tr "&" " "`
-	
-	#echo `echo $stringofparams` >> ./session/$safehostname.$safelogname.siteanalysis.txt	
 
+	#this branch is for RESTful params	
+	if [[ true == "$R" ]]; then
+		if (($firstPOSTURIURL>0)) ; then
+			if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
+				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+				static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
+			fi
+			if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
+				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
+				static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+			fi
+		else #we are dealing with a simple GET request
+			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1 | cut -d "/" -f 2,3,4,5,6,7,8,9,10,11,12 | replace "/" "="`
+		fi
+		#echo "DEBUG $i"
+		#echo "DEBUG $uhostname"
+		#echo "debug i "$i;				
+						
+		stringofparams=`echo $params | tr "&" " "`		
+	else # normal scan not RESTful #work out the params that will be fuzzed in this loop iteration:
+	if [ true = "$Z" ] ; then echo "DEBUG! NOT RESTFUL PARAMS"; fi
+		if (($firstPOSTURIURL>0)) ; then
+			if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
+				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+				static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
+			fi
+			if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
+				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
+				static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+			fi
+		else #we are dealing with a simple GET request
+			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
+		fi
+		
+		#echo "debug static "$i;				
+		#echo "debug params "$params;				
+		stringofparams=`echo $params | tr "&" " "`
+		
+		#echo `echo $stringofparams` >> ./session/$safehostname.$safelogname.siteanalysis.txt	
+	fi	
+	if [ true = "$Z" ] ; then echo "DEBUG! params: "$params; fi
+	if [ true = "$Z" ] && [ $firstPOSTURIURL != "0" ] ; then echo "DEBUG! static: "$static; fi
+	if [ true = "$Z" ] ; then echo "DEBUG! stringofparams: $stringofparams" ;fi
+	
 	#code that compares the current URL and params for comparison against the old URL - this can be used to skip params already scanned
 	#newURL=`echo $i | cut -d "?" -f 1| cut -d " " -f2`
 	newURL=`echo $i | cut -d "?" -f 1`
@@ -2130,38 +2200,40 @@ cat cleanscannerinputlist.txt | while read i; do
 	#if the current and last urls dont match, clear down the lists
 	#we want these lists to grow across a given URL, but re-start
 	#when a new URL comes along
-	if [[ "$oldURL" == "$newURL" ]] ; then
-		if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
-			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			for dfg in $stringofparams; do
-				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			done
-			firstrunflag=1
-			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
-		fi
-	else
-		if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
-			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			for dfg in $stringofparams; do
-				echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			done
-			firstrunflag=1
-			#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
+	if [[ true != "$F" ]]; then # ...unless F (override param skipping) is set:
+		if [[ "$oldURL" == "$newURL" ]] ; then
+			if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
+				echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				for dfg in $stringofparams; do
+					echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				done
+				firstrunflag=1
+				#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
+			fi
 		else
-			#this branch is taken when a new URL comes along
-			#the below writes out the old URL and paramlist info to the siteanalysis log
-			
-			echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			echo "$oldURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			cat ./session/$safehostname.$safelogname.oldparamlist.txt >> ./session/$safehostname.$safelogname.siteanalysis.txt
-			#the below clears away the old paramlist
-			echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
+			if [[ "$firstrunflag" == 0 || "$K" == "$entries" ]] ; then
+				echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				echo "$newURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				for dfg in $stringofparams; do
+					echo `echo $dfg | cut -d "=" -f1` >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				done
+				firstrunflag=1
+				#this branch is taken for the first and last URLs, otherwise these wouldent be captured in the siteanalysis log
+			else
+				#this branch is taken when a new URL comes along
+				#the below writes out the old URL and paramlist info to the siteanalysis log
+				
+				echo "------------------" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				echo "$oldURL" >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				cat ./session/$safehostname.$safelogname.oldparamlist.txt >> ./session/$safehostname.$safelogname.siteanalysis.txt
+				#the below clears away the old paramlist
+				echo "" > ./session/$safehostname.$safelogname.oldparamlist.txt
+			fi
 		fi
 	fi
 	paramsarray=($stringofparams)
-	#echo "debug paramsarray "${paramsarray[*]};
+	if [ true = "$Z" ] ; then echo "DEBUG! paramsarray: "${paramsarray[*]}; fi
 	output='';
 	arraylength=${#paramsarray[*]}
 	((arraylengthminusone=$arraylength-1))
@@ -2179,7 +2251,7 @@ cat cleanscannerinputlist.txt | while read i; do
 			#echo "DEBUG-perpayload! sessionStorage=$sessionStorage"	
 			#payloadcounter is not used for logic, it just presents the user with the payload number			
 			payloadcounter=$((payloadcounter+1))
-			#echo "debug payload counter: $payloadcounter"
+			if [ true = "$Z" ] ; then echo "debug payload counter: $payloadcounter" ;fi 
 			# the output buffer will hold the final string of params including the injected param and the normal ones
 			# lets clear it down at the begining of the loop:
 			output=''
@@ -2196,21 +2268,22 @@ cat cleanscannerinputlist.txt | while read i; do
 			# y will be the innerloop iterator. where y=paramflag, we will inject our payload.
 			# note that while y increments for each loop iteration, paramflag does not 
 			for (( y = 0; y <= $arraylengthminusone; y += 1 )); do
-				#echo "debug payload "$payload;	
+				if [ true = "$Z" ] ; then echo "DEBUG! payload: "$payload;fi	
 				#echo "debug y="$y;
 				#echo "debug paramflag="$paramflag;
-				# below is the url encoding scheme which is applied to payloads - its not perfect, but works most of the time 
 				if (( $y == $paramflag )) ; then 
 					testpayload=$payload
-					#removing the encoding stage here; creating a single sendrequest() function so that all output goes through the same code
-					#then i can add custom encoding options that will affect ALL requests. hope this works :-)
-					#testpayload=`echo $payload | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
 					#inject the payload into this parameter:
-					output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$testpayload
-					#echo "output after payload injection $output";
-					#echo "debug paramsarray at y " ${paramsarray[$y]};
+					#(the -R path is for REST params:)
+					if [[ true != "$R" ]]; then
+						output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$testpayload
+					else					
+						output=$output$testpayload
+					fi
+					if [ true = "$Z" ] ; then echo "DEBUG! output after payload injection: $output";fi
+					if [ true = "$Z" ] ; then echo "DEBUG! paramsarray at y: " ${paramsarray[$y]};fi
 					paramtotest=`echo ${paramsarray[$y]} | cut -d "=" -f1`
-					#echo "debug paramtotest: "$paramtotest;
+					if [ true = "$Z" ] ; then echo "DEBUG! paramtotest: "$paramtotest;fi
 					#check to see if the current parameter should be skipped:
 					for paramcheck in `cat parameters_to_skip.txt`; do
 						if [[ "$paramcheck" == "$paramtotest" ]]; then
@@ -2238,11 +2311,20 @@ cat cleanscannerinputlist.txt | while read i; do
 					output=$output${paramsarray[$y]}
 				fi
 				#this line works out if we need to append an & to the parameter value:
-				if (($y == $arraylengthminusone))
-					then foobar="foobar"
-					#no need to add a '&' suffix to $output as no more params left to add...
-				else 
-					output=$output"&" 
+				if [[ true != "$R" ]]; then
+					if (($y == $arraylengthminusone)) ; then 
+						foobar="foobar"
+						#no need to add a '&' suffix to $output as no more params left to add...
+					else 
+						output=$output"&"
+					fi 
+				else	
+					if (($y == $arraylengthminusone)) ; then 
+						foobar="foobar"
+						#no need to add a '&' suffix to $output as no more params left to add...
+					else 
+						output=$output"/"
+					fi 
 				fi
 				#if we are testing the last parameter, we have a full list of params ready to go to the scanner:				
 				if (($y == $arraylengthminusone))
@@ -2265,8 +2347,13 @@ cat cleanscannerinputlist.txt | while read i; do
 					static=$encodeoutput
  
 					#create two requests - one clean, one evil
-					r=$uhostname$page"?"$output
-					i=$uhostname$page"?"$params
+					if [[ true != "$R" ]]; then
+						r=$uhostname$page"?"$output
+						i=$uhostname$page"?"$params
+					else
+						r=$uhostname"/"$output
+						i=$uhostname"/"$params
+					fi
 					if (( $continueflag == 1 )); then
 						if (( $alreadyscanned == 1 )); then
 							alreadyscanned=0
@@ -2300,7 +2387,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							echo $and1eq1 > ./session/$safehostname.$safelogname.and1eq1.txt
 							echo "Testing URL $K of $entries GET $i"
 						fi
-						#echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+						if [ true = "$Z" ] ; then echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload" ;fi
 						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 					# right, thats it for clean and evil GET requests. now POSTs:
 					else	# we're doing a POST - not so simple...
@@ -2681,7 +2768,7 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 				encodeme
 				decparam=$decodeoutput
 				#decparam=`echo $paramval | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "(" | replace "%29" ")" | replace "%2c" ","`;
-				echo -n "<Input type="hidden" name=\""$paramname"\" value=\""$decparam"\"> " >> ./output/$safefilename$safelogname.html
+				echo -n "<Input type="hidden" name=\"$paramname\" value=\"$decparam\"> " >> ./output/$safefilename$safelogname.html
 				#echo "<br>" >> ./output/$safefilename$safelogname.html
 			done
 			echo "<input type="submit"> " >> ./output/$safefilename$safelogname.html
@@ -2696,6 +2783,7 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 			decodeinput=$paramval
 			encodeme
 			decparam=$decodeoutput
+			#echo "DEBUG! decparam: $decparam"
 			#decparam=`echo $postdataparams | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" ","`;
 			echo "$decparam" >> ./output/$safefilename$safelogname.html
 			echo "<br>" >> ./output/$safefilename$safelogname.html
@@ -2710,7 +2798,7 @@ cat ./output/$safefilename$safelogname.sorted.txt | while read aLINE ; do
 				encodeme
 				decparam=$decodeoutput
 				#decparam=`echo $paramval | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" ","`;
-				echo -n "<Input type="hidden" name=\""$paramname"\" value=\""$decparam"\"> " >> ./output/$safefilename$safelogname.html
+				echo -n "<Input type="hidden" name=\"$paramname\" value=\"$decparam\"> " >> ./output/$safefilename$safelogname.html
 				#echo "<br>" >> ./output/$safefilename$safelogname.html
 			done
 			echo "<input type="submit"> " >> ./output/$safefilename$safelogname.html
