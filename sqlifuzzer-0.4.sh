@@ -35,6 +35,10 @@ fi
 
 encodeoutput=`echo $inputbuffer  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
 
+if [ true = "$N" ] ; then
+	encodeoutput=`echo $encodeoutput | replace "%20" "%2f%2a%0B%0C%0D%0A%09%2a%2f"`
+fi
+
 #if [ true = "$O" ] ; then
 #	encodeoutput=`echo $encodeoutput | replace "select" "se%2f%2a%2a%2flect" | replace "union" "uni%2f%2a%2a%2fon" | replace "and" "an%2f%2a%2a%2fd" | replace "or" "o%2f%2a%2a%2fr" | replace "order" "ord%2f%2a%2a%2fer" | replace "by" "b%2f%2a%2a%2fy" | replace "delay" "del%2f%2a%2a%2fay" | replace "dual" "du%2f%2a%2a%2fal" | replace "exec" "ex%2f%2a%2a%2fec" | replace "from" "fr%2f%2a%2a%2fom" | replace "having" "hav%2f%2a%2a%2fing" | replace "waitfor" "wai%2f%2a%2a%2ftfor" | replace "case" "ca%2f%2a%2a%2fse" | replace "when" "wh%2f%2a%2a%2fen" | replace "then" "th%2f%2a%2a%2fen" | replace "else" "el%2f%2a%2a%2fse" | replace "end" "en%2f%2a%2a%2fd" | replace "len" "le%2f%2a%2a%2fn" | replace "ascii" "as%2f%2a%2a%2fcii" | replace "substr" "su%2f%2a%2a%2fbstr"`
 #fi
@@ -1406,10 +1410,11 @@ U=false
 O=false
 K=false
 J=false
+N=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJE namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJEN namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1547,6 +1552,9 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJE namer; 
     E) # Filter Evasion '=' => 'like'
 	E=true  
 	;;
+    N) # Filter Evasion Intermediary chars ' ' => '%2f%2a%0B%0C%0D%0A%09%2a%2f'
+	N=true  
+	;;
     esac
 done
 
@@ -1575,13 +1583,14 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
         echo "  -b OS Command injection"
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
         #echo "  -Y XSS injection (very basic!)"
-	echo "Optional payload modifiers:                Before     After          Breaks normal query?"
-	echo "  -Y Inline SQL comment instead of spaces  ' '        '/**/'         No                  "              
-	echo "  -V Double URL encoding                   '%27'      '%2527'        ?                   "
-	echo "  -U Case variation                        'select'   'sElEcT'       No                  "
-	#echo "  -O MYSQL inline comments                  'select'  'se/**/lect'  No                  "
-	echo "  -E Replace equals operator with like     '='        'like'         No                  "
-	echo "  -J Nesting                               'select'   'selselectect' Yes                 "
+	echo "Optional payload modifiers:                Before     After                         Breaks normal query?"
+	echo "  -Y Inline SQL comment instead of spaces  ' '        '/**/'                        No                  "
+	echo "  -N Intermediary chars instead of spaces  ' '        '%2f%2a%0B%0C%0D%0A%09%2a%2f' No                  "              
+	echo "  -V Double URL encoding                   '%27'      '%2527'                       Yes                 "
+	echo "  -U Case variation                        'select'   'sElEcT'                      No                  "
+	#echo "  -O MYSQL inline comments                  'select'  'se/**/lect'                 No                  "
+	echo "  -E Replace equals operator with like     '='        'like'                        No                  "
+	echo "  -J Nesting                               'select'   'selselectect'                Yes                 "
 	echo "  -A Prepend payloads with %00"
 	echo "  -B Prepend payloads with %0d%0a"
 	echo "  -W HTTP Method Swapping mode: GET requests are converted to POSTs and vice-versa. These new requests are tested IN ADDITION to the original."
