@@ -275,7 +275,7 @@ outbuf="declare @werui varchar(100) select @werui=0x$outbuf exec(@werui)"
 echo "$outbuf"
 
 input=$1
-echo "mssql char:"
+echo "MSSQL char:"
 i=0
 outbuf=''
 stringlength=${#input}
@@ -286,6 +286,28 @@ while ((i<$stringlength)) ; do
 	outbuf=$outbuf`printf "%x" "'$char'"`
 	if [[ "$i" -lt "$stringlengthminus1" ]] ; then
 		outbuf=$outbuf`echo -n ")+"`
+	fi
+	if [[ "$i" == "$stringlengthminus1" ]] ; then
+		outbuf=$outbuf`echo -n ")"`
+	fi
+	((i++))
+done 
+echo "$outbuf"
+
+
+#chr(55)||chr(56)||chr(57)||chr(56)||chr(55)||chr(57)
+input=$1
+echo "Oracle chr:"
+i=0
+outbuf=''
+stringlength=${#input}
+((stringlengthminus1=$stringlength-1))
+while ((i<$stringlength)) ; do 
+	char=`echo "${input:i:1}"`
+	outbuf=$outbuf`echo -n "chr("`	
+	outbuf=$outbuf`printf "%x" "'$char'"`
+	if [[ "$i" -lt "$stringlengthminus1" ]] ; then
+		outbuf=$outbuf`echo -n ")||"`
 	fi
 	if [[ "$i" == "$stringlengthminus1" ]] ; then
 		outbuf=$outbuf`echo -n ")"`
