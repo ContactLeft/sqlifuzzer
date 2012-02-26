@@ -14,6 +14,17 @@ fi
 
 echo "You entered: $input"
 
+echo "Comma-separated decimal to characters:"
+i=0
+#input=$1
+outbuf=''
+stringofdecimals=`echo $1 | tr ',' ' '`
+
+for i in $stringofdecimals; do
+	outbuf=$outbuf`echo $i | awk '{printf("%c", $1)}'`
+done 
+echo "$outbuf"
+
 echo "URL encoding:"
 i=0
 #input=$1
