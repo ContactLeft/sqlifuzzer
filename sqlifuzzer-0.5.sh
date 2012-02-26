@@ -252,7 +252,7 @@ echo "Order by 1 got a $status1 response, order by 9659 got a $status999 respons
 orderbyrequest()
 {
 count=1
-columns=1
+columns=150
 #change this back to 150!!!
 while [[ $count -lt $columns ]] ; do
 		if [ true = "$O" ] ; then #uri unicode encoding
@@ -283,7 +283,7 @@ orderbyrequestlength()
 {
 echo "Using 'order by x' and response length diffing to determine the number of columns"
 count=1
-columns=1
+columns=150
 while [[ $count -lt $columns ]] ; do
 	echo -n "."
 	if [ true = "$Z" ] ; then echo "DEBUG! sending order by req: $badparams" ; fi
