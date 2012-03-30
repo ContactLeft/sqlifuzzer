@@ -191,6 +191,10 @@ else	# we're doing a POST - not so simple...
 			response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 			request="$method URL: $uhostname$page??$badparams" 
 		fi
+	elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
+		echo -n "--form \""$badparams\" | replace '&' '" --form "' > ./foo.txt
+		response="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
+		request="$method URL: $uhostname$page???$badparams"
 	else #just a normal POST:
 		response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 		request="$method URL: $uhostname$page?$badparams" 		
@@ -498,6 +502,10 @@ if [ true = "$O" ] ; then #uri unicode encoding
 else
 	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote union select $nullwrongstring$end"`
 fi
+
+echo "cleanoutput: $cleanoutput"
+echo "badparams: $badparams"
+
 
 encodeinput=$badparams
 encodeme
@@ -2808,7 +2816,8 @@ rm ./alertmessage.txt 2>/dev/null
 if [[ true != "$I" && true != "$T" ]] ; then
 	rm 1scannerinputlist.txt 2>/dev/null
 	rm scannerinputlist.txt 2>/dev/null
-	
+	rm ./multipartlist.txt 2>/dev/null
+
 	burplines=`wc -l $burplog | cut -d " " -f 1`
 	echo "Parsing burp log $burplog with $burplines lines"  
 	if [[ $burplines == "" || $burplines == "0" ]] ; then
@@ -2836,12 +2845,13 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	postflag=0
 	postdataflag=0
 	postURIflag=0
-	
+	multipartpost=0
+	searchformultipartdata=0
+	rm ./partlist.txt 2>/dev/null
 	# this next block of code is a 'for' loop over the list of entries in the $burplog txt file.
 	# its purpose is to translate a burp log into .input format, which is a list of lines like this:
 	# GET /foobar.php?sna=fu 
-	# i use a 'while | read' instead of a 'for' because this can handle lines with spaces in. if 
-	# you use a 'for' loop in bash it treats spaces as delimiters by default - 'while | read' is 
+	# if you use a 'for' loop in bash it treats spaces as delimiters by default - 'while | read' is 
 	# one way to get bash to treat each line as a whole regardless of spaces
 	cat $burplog | while read LINE ; do
 		if [ $lineflag == 2 ]; then
@@ -2855,7 +2865,22 @@ if [[ true != "$I" && true != "$T" ]] ; then
 			captureflag=0		
 			#reset the flag that counts the number of ============= lines that have passed by:
 			lineflag=0
-			echo -n "." 
+			#echo -n "."
+			#we output multipart post details here as we are at the end of the request: 
+			if [ $multipartpost == 1 ]; then
+				out=`cat ./partlist.txt | tr -d "[:cntrl:]"`
+				multipartpost=0
+				searchformultipartdata=0
+				#this is to chop off the trailing '&'
+				len=${#out}
+				lenminus1=$((len-1))
+				mparams=${out:0:lenminus1}
+
+				echo "POST" $outer"???"$mparams  >> 1scannerinputlist.txt
+				echo "POST" $outer"???"$mparams 
+				rm ./partlist.txt
+			fi
+ 
 		fi
 		if [ $captureflag == 1 ]; then
 		# we are capturing burp log info:
@@ -2892,7 +2917,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 				#this is my lame postdata matching condition:
 				#the post data has an "=" and DOESENT have a ":" (keeps the headers away from the door...)
 				#TODO sharpen this test up a bit!
-				if [[ $LINE =~ $equals && !($LINE =~ $colon) && !($LINE =~ $question) ]]; then
+				if [[ $LINE =~ $equals && !($LINE =~ $colon) && !($LINE =~ $question) && !($LINE =~ $equalcheck) ]]; then
  					if [ $postURIflag == 1 ]; then
 						echo "POST" $outer"??"$LINE  >> 1scannerinputlist.txt
 						# In the case of a POST with URI parameters, POST body parameters are preceded with ??, like this:
@@ -2907,6 +2932,45 @@ if [[ true != "$I" && true != "$T" ]] ; then
 				#reset the post flag in preparation for parsing the next request:
 				postflag=0
 				fi
+			fi
+			#if we find a line like: Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryOXye4QTitIZotFdn
+			if [[ $LINE =~ "Content-Type" && $LINE =~ "multipart" && $LINE =~ "boundary" ]]; then
+				#set the multipartpostflag for this request
+				multipartpost=1
+				#marker=`echo "$LINE" | cut -d "=" -f 2`
+					
+			fi
+			if [ $multipartpost == 1 ]; then
+				#if we find a line like: Content-Disposition: form-data; name="input1"
+				if [[ $LINE =~ "Content-Disposition" && $LINE =~ "form-data" ]] ; then
+					#store the name value such as input1 in the example line above
+					#printf -v str 'Hello World\n===========\n'
+					multipartname=`echo $LINE | cut -d "=" -f 2 | replace '"' ''`
+					#now we are hunting for the multipart data, so set the flag:
+					searchformultipartdata=1
+					#store the current line number as the multipart data is in 2 lines:
+					thelinenumer=$N
+				fi
+			fi
+			#if we are hunting for the multipart data:
+			if [ $searchformultipartdata == 1 ]; then
+				#echo "MATCH"					
+				#get the stored line number from above, and add 2:
+				checkval=$((thelinenumer+2))
+				#echo "compare: $N with: $checkval"
+				#compare this value with the current line number:
+				if [ $N == $checkval ]; then
+					#if they match, grab the value of this line - its the multipart data:
+					multipartval=($LINE)
+					#stop hunting for multipart data:
+					searchformultipartdata=0
+					#concatenate the multipart name and data values to a text file 
+					# - there could be one or more name value pairs: 
+					#multiparams="$multipartname$multipartval$multiparams"
+					echo $multipartname >> ./partlist.txt
+					echo "="$multipartval  >> ./partlist.txt
+					echo "&" >> ./partlist.txt
+				fi 
 			fi
 		fi
 		
@@ -2929,7 +2993,10 @@ if [[ true != "$I" && true != "$T" ]] ; then
 		fi
 		N=$((N+1))
 	done
-
+	
+	
+	#cat 1scannerinputlist.txt
+	#exit
 	rm 2scannerinputlist.txt 2>/dev/null
 
 	# if Method swapping has been specified, add a GET for each POST and vice-versa:
@@ -2965,11 +3032,13 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	cat 3scannerinputlist.txt | while read LINE; do
 		echo -n "."
 		echo $LINE >> scannerinputlist.txt
-		if [[ $LINE =~ $post && $LINE =~ $question$question ]]; then
+		#modded this to exclude multipart post forms: /foo.asp???bar=1:
+		if [[ $LINE =~ $post && $LINE =~ $question$question && !($LINE =~ $question$question$question) ]]; then
 			echo $LINE >> scannerinputlist.txt
 		fi
 	done
 
+	#TODO: investigate this and the below if statement. 
 	#get rid of any requests without ?'s unless F:
 	if [[ true != "$R" ]]; then # ...unless F (override param skipping) is set:
 		cat scannerinputlist.txt | while read LINE; do
@@ -3201,14 +3270,12 @@ if [ false = "$G" ] ; then
 	echo ""
 	echo "" 
 	if [[ $testresultstatus == "000" ]]
-		then echo "No meaningful headers returned: please check your settings or set the -G flag to skip the connection check."
+		then echo "No data returned on connection: is the server up? Check your settings or set the -G flag to skip the connection check."
 		exit
 	else
 		echo "Connection looks good."
 	fi		
 fi
-
-#original location of session file check
 
 #this IF statement creates list of params to skip based on a user-supplied list, or using the default list.
 rm ./parameters_to_skip.txt 2>/dev/null
@@ -3248,12 +3315,20 @@ echo "" > ./session/$safelogname.$safehostname.oldURL.txt
 echo "" > ./session/$safelogname.$safehostname.oldparamlist.txt
 
 cat cleanscannerinputlist.txt | while read i; do
+	#default the multipartPOSTURL flag down to 0 - most requests are 'normal'
+	multipartPOSTURL=0
 	if [ true = "$Z" ] ; then echo "DEBUG! Starting outerloop iteration" ;fi
 	methodical=`echo $i | cut -d " " -f 1`
-	if [[ $i =~ $question$question && "$methodical" =~ "POST" ]] ; then
+	if [[ $i =~ $question$question && "$methodical" =~ "POST" && $i =~ !($question$question$question) ]] ; then
 		#increment the firstPOSTURIURL flag: 
 		firstPOSTURIURL=$((firstPOSTURIURL+1)) 
 	fi
+	#this is for multipart POST forms:
+	if [[ $i =~ $question$question$question && "$methodical" =~ "POST" ]] ; then
+		multipartPOSTURL=1 
+		echo "Multipart detected!"
+	fi
+
 	if [ true = "$Z" ] ; then echo "DEBUG! firstPOSTURIURL: $firstPOSTURIURL" ; fi
 	if [ true = "$Z" ] ; then echo "DEBUG! i: $i" ;fi
 	K=$((K+1)); #this is a request counter
@@ -3295,6 +3370,7 @@ cat cleanscannerinputlist.txt | while read i; do
 		page=`echo $i | cut -d " " -f 2 | cut -d "?" -f 1`
 	fi
 
+	#TODO: the below does not account for normal POST requests? investigate? 
 	#this branch is for RESTful params	
 	if [[ true == "$R" ]]; then
 		if (($firstPOSTURIURL>0)) ; then
@@ -3315,7 +3391,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						
 		stringofparams=`echo $params | tr "&" " "`		
 	else # normal scan not RESTful #work out the params that will be fuzzed in this loop iteration:
-	if [ true = "$Z" ] ; then echo "DEBUG! NOT RESTFUL PARAMS"; fi
+		if [ true = "$Z" ] ; then echo "DEBUG! NOT RESTFUL PARAMS"; fi
 		if (($firstPOSTURIURL>0)) ; then
 			if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
 				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
@@ -3325,6 +3401,8 @@ cat cleanscannerinputlist.txt | while read i; do
 				params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
 				static=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
 			fi
+		elif [ $multipartPOSTURL == 1 ] ; then #multipart post request:
+			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 4`
 		else #we are dealing with a simple GET request
 			params=`echo $i | cut -d " " -f 2 | cut -d "?" -f 2`
 		fi
@@ -3434,7 +3512,11 @@ cat cleanscannerinputlist.txt | while read i; do
 					#inject the payload into this parameter:
 					#(the -R path is for REST params:)
 					if [[ true != "$R" ]]; then
-						output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$payload
+						if [ "$multipartPOSTURL" == 1 ] ; then #mulipart form: wrap payload in double quotes
+							output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$payload
+						else # normal request:
+							output=$output`echo ${paramsarray[$y]} | cut -d "=" -f1`"="$payload
+						fi
 					else					
 						output=$output$payload
 					fi
@@ -3503,19 +3585,21 @@ cat cleanscannerinputlist.txt | while read i; do
 						if [ true = "$Z" ] ; then echo "DEBUG! cleanoutput: $cleanoutput";fi
 					fi
 
-					#encode output and params variables without chaning the variable name
-					encodeinput=$params
-					encodeme
-					params=$encodeoutput
+					if [ $multipartPOSTURL == 0 ] ; then #as long as this isnt a multipartPOST request...
+						#encode output and params variables without changing the variable name:
+						encodeinput=$params
+						encodeme
+						params=$encodeoutput
 
-					encodeinput=$output
-					encodeme
-					output=$encodeoutput
+						encodeinput=$output
+						encodeme
+						output=$encodeoutput
+	
+						encodeinput=$static
+						encodeme
+						static=$encodeoutput
+					fi
 
-					encodeinput=$static
-					encodeme
-					static=$encodeoutput
- 
 					#create two requests - one clean, one evil
 					if [[ true != "$R" ]]; then
 						r=$uhostname$page"?"$output
@@ -3569,11 +3653,16 @@ cat cleanscannerinputlist.txt | while read i; do
 						# we only need to send a clean request if we are doing time diffing and we havent already sent one for this URL
 						# TODO move the below IF to the next level up:
 						# it should encapsulate both clean GETs and clean POSTS, not just clean POSTS
+						# NOTE the below IF never gets executed, EXCEPT when doing timedelay or command injection.
+						# This is because length diff testing requests are sent by the EVIL send (the following IF)
+						# which commences with the comment "send an 'evil' POST request"
 						if [[ "$sessionStorage" == 0 && true = "$e" || true = "$b" ]] ; then
 							# send a 'normal' POST request
 							if (($firstPOSTURIURL>0)) ; then
 								if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-									and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+									if [ $multipartPOSTURL != 1 ] ; then
+										and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+									fi
 									if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params"??"$static";fi
 									if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 									#write set sessionStorage to 1 to prevent clean requests being sent for each param:
@@ -3591,6 +3680,9 @@ cat cleanscannerinputlist.txt | while read i; do
 									echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
 									echo "Testing URL $K of $entries POST $uhostname$page??$params" 
 								fi
+							elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form land. shiver.
+									mparam=`echo "--form $params" | replace "&" " --form " `
+									and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 							else #just a normal POST:
 								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 								if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
@@ -3613,6 +3705,13 @@ cat cleanscannerinputlist.txt | while read i; do
 								if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 							fi
+						elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
+							#mparam=$(echo "--form \"$output\"" | replace "&" "\" --form \"")
+							#printf -v str 'Hello World\n===========\n'
+							echo -n "--form \""$output\" | replace '&' '" --form "' > ./foo.txt
+							and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
+							if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi  
+							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 						else #just a normal evil POST:
 							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
@@ -4067,6 +4166,9 @@ cp ./alertmessage.txt ./useful.txt
 rm ./alertmessage.txt 2>/dev/null
 rm ./listofxpathnodes.txt 2>/dev/null
 rm ./listofxpathelements.txt 2>/dev/null
+rm ./multipartlist.txt 2>/dev/null
+rm ./selcheck1 2>/dev/null
+rm ./useful.txt 2>/dev/null
 
 
 echo "Done. HTML report written to ./output/$safelogname-report-$safefilename.html"
