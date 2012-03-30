@@ -192,9 +192,14 @@ else	# we're doing a POST - not so simple...
 			request="$method URL: $uhostname$page??$badparams" 
 		fi
 	elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
+		#have to url decode the badparams values - not great for performance to encode then decode, but it works...
+		decodeinput=$badparams
+		encodeme
+		badparams=$decodeoutput
 		echo -n "--form \""$badparams\" | replace '&' '" --form "' > ./foo.txt
 		response="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
-		request="$method URL: $uhostname$page???$badparams"
+		#echo "Response: `cat ./foo.txt`"
+		request="MULTIPART POST URL: $uhostname$page???$badparams"
 	else #just a normal POST:
 		response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 		request="$method URL: $uhostname$page?$badparams" 		
@@ -3680,7 +3685,7 @@ cat cleanscannerinputlist.txt | while read i; do
 									echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
 									echo "Testing URL $K of $entries POST $uhostname$page??$params" 
 								fi
-							elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form land. shiver.
+							elif [ "$multipartPOSTURL" == 1 ] ; then #we are in the land of multipart forms. here be dragons
 									mparam=`echo "--form $params" | replace "&" " --form " `
 									and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
 							else #just a normal POST:
@@ -3709,6 +3714,7 @@ cat cleanscannerinputlist.txt | while read i; do
 							#mparam=$(echo "--form \"$output\"" | replace "&" "\" --form \"")
 							#printf -v str 'Hello World\n===========\n'
 							echo -n "--form \""$output\" | replace '&' '" --form "' > ./foo.txt
+							#TODO: re-implement the -H "$headertoset" option in the below:
 							and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
 							if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi  
 							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
@@ -3900,6 +3906,7 @@ cat cleanscannerinputlist.txt | while read i; do
 			done
 		#for each payload the vulnerable flag is tested; if true, we call the orderby function to enumerate columns  
 		if [[ $vulnerable == 1 ]] ; then
+			echo "outputstore: $outputstore"
 			orderby #calling the orderby function initiates order by, union select and data extraction through string columns tests
 			#if [[ $success == 0 ]] ; then
 				#if [[ "$dbms" == "" ]] then
@@ -4082,14 +4089,41 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 		echo "<a href="$request">Submit Query</a>" >> ./output/$safelogname-report-$safefilename.html
 		echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 	else
-		if [[ $request =~ "??" ]] ; then 
+		if [[ $request =~ "??" && !($request =~ "???") ]] ; then #post URI params 
 			echo "$method /$page?$postURIparams" >> ./output/$safelogname-report-$safefilename.html
+			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+			echo "Host: $host" >> ./output/$safelogname-report-$safefilename.html
+			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+			echo "Content-Type: multipart/form-data; boundary=---------------------------20126896602139731096819824864" >> ./output/$safelogname-report-$safefilename.html
+			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+
+			decodeinput=$postdataparams
+			encodeme
+			decparam=$decodeoutput
+
+			#echo "$decparam" >> ./output/$safelogname-report-$safefilename.html
+			echo "<form action="$protocol//$host/$page" method="POST">" >> ./output/$safelogname-report-$safefilename.html
+			for param in `echo $postdataparamslist` ; do
+				echo "-----------------------------20126896602139731096819824864" >> ./output/$safelogname-report-$safefilename.html
+				paramname=`echo $param | cut -d "=" -f 1`
+				paramval=`echo $param | cut -d "=" -f 2,3,4,5,6`
+				#this is the in the inverse of the encoding line in the fuzz loop
+				decodeinput=$paramval
+				encodeme
+				decparam=$decodeoutput
+				echo -n "<Input type="text" size=80 name=\"$paramname\" value=\"$decparam\"> " >> ./output/$safelogname-report-$safefilename.html
+			done
+			echo "<input type="submit"> " >> ./output/$safelogname-report-$safefilename.html
+			echo "</form> " >> ./output/$safelogname-report-$safefilename.html
+		elif [[ $request =~ "???" ]] ; then #multipart post 
+			echo "MULTIPART POST /$page" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "Host: $host" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 
-			decodeinput=$postdataparams
+			decodeinput=$postparams
 			encodeme
 			decparam=$decodeoutput
 
@@ -4106,7 +4140,7 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 			done
 			echo "<input type="submit"> " >> ./output/$safelogname-report-$safefilename.html
 			echo "</form> " >> ./output/$safelogname-report-$safefilename.html
-		else
+		else # normal post
 			echo "$method /$page" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "Host: $host" >> ./output/$safelogname-report-$safefilename.html
@@ -4150,12 +4184,13 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 	echo "------------------------------------------------------------------" >> ./output/$safelogname-report-$safefilename.html
 	echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 done
-echo "<H3>sqlifuzzer site analysis</H3>" >> ./output/$safelogname-report-$safefilename.html
-cat ./session/$safelogname.$safehostname.siteanalysis.txt | while read bLINE ; do
-	echo -n "."
-	echo "$bLINE" >> ./output/$safelogname-report-$safefilename.html
-	echo "<br>" >> ./output/$safelogname-report-$safefilename.html
-done
+#mothballing this aspect of reporting for now. it looks crap.
+#echo "<H3>sqlifuzzer site analysis</H3>" >> ./output/$safelogname-report-$safefilename.html
+#cat ./session/$safelogname.$safehostname.siteanalysis.txt | while read bLINE ; do
+#	echo -n "."
+#	echo "$bLINE" >> ./output/$safelogname-report-$safefilename.html
+#	echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+#done
 echo "" > ./session/$safelogname.$safehostname.siteanalysis.txt	
 echo "</body>" >> ./output/$safelogname-report-$safefilename.html
 echo "</html>" >> ./output/$safelogname-report-$safefilename.html 
@@ -4169,7 +4204,7 @@ rm ./listofxpathelements.txt 2>/dev/null
 rm ./multipartlist.txt 2>/dev/null
 rm ./selcheck1 2>/dev/null
 rm ./useful.txt 2>/dev/null
-
+rm ./foo.txt 2>/dev/null
 
 echo "Done. HTML report written to ./output/$safelogname-report-$safefilename.html"
 echo "Attempting to open ./output/$safelogname-report-$safefilename.html with firefox"
