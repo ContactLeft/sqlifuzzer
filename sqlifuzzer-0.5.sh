@@ -255,7 +255,7 @@ ordlngthdiff=0
 if [[ "$lendiff" -gt 4 || "$lendiff" -lt 4 ]] ; then
 	ordlngthdiff=1
 fi
-echo "Order by 1 got a $status1 response, order by 9659 got a $status999 response"
+#echo "Order by 1 got a $status1 response, order by 9659 got a $status999 response"
 }
 
 orderbyrequest()
@@ -785,6 +785,11 @@ cat ./payloads/system-params.txt | while read inj3ct ; do
 					echo -e '\E[31;48m'"\033[1m[DATA-EXTRACTED: $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"??"$badparams";
 					tput sgr0 # Reset attributes.
 				fi
+			elif [ "$multipartPOSTURL" == 1 ] ; then 
+				#mulipart post
+				echo "[DATA-EXTRACTED: $inj3ct REQ:$K "$safefilename"-rdiff-$K-$payloadcounter-$reqcount.txt] $method URL: $uhostname$page"???"$badparams" >> ./output/"$safefilename"$safelogname.txt
+				echo -e '\E[31;48m'"\033[1m[DATA-EXTRACTED: $inj3ct REQ:$K]\033[0m $method URL: $uhostname$page"???"$badparams"
+				tput sgr0 # Reset attributes.
 			else
 				#normal post
 				echo "[DATA-EXTRACTED: $inj3ct REQ:$K "$safefilename"-rdiff-$K-$payloadcounter-$reqcount.txt] $method URL: $uhostname$page"?"$badparams" >> ./output/"$safefilename"$safelogname.txt
@@ -816,6 +821,11 @@ else
 			echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"??"$badparams";
 			tput sgr0 # Reset attributes.
 		fi
+	elif [ "$multipartPOSTURL" == 1 ] ; then
+		#multipart post
+		echo "[$remessage REQ:$K] $method URL: $uhostname$page"???"$badparams" >> ./output/$safelogname$safefilename.txt
+		echo -e '\E[31;48m'"\033[1m[$remessage REQ:$K]\033[0m $method URL: $uhostname$page"???"$badparams"
+		tput sgr0 # Reset attributes.
 	else
 		#normal post
 		echo "[$remessage REQ:$K] $method URL: $uhostname$page"?"$badparams" >> ./output/$safelogname$safefilename.txt
@@ -1077,7 +1087,7 @@ badparams=`echo "$cleanoutput" | replace "$payload" "%31%20%6f%72%20%63%6f%75%6e
 requester
 status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
-echo "length_true: $length_true length_false: $length_false"
+#echo "length_true: $length_true length_false: $length_false"
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
 	remessage="STATUS DIFF T:$status_true F:$status_false XPATH Injection"
@@ -1116,7 +1126,7 @@ badparams=`echo "$cleanoutput" | replace "$payload" "%27%20%6f%72%20%63%6f%75%6e
 requester
 status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
-echo "length_true: $length_true length_false: $length_false"
+#echo "length_true: $length_true length_false: $length_false"
 
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
@@ -1158,7 +1168,7 @@ badparams=`echo "$cleanoutput" | replace "$payload" "%30%20%6f%72%20%63%6f%75%6e
 requester
 status_false=`echo $response | cut -d ":" -f 1`
 length_false=`echo $response | cut -d ":" -f 2`
-echo "length_true: $length_true length_false: $length_false"
+#echo "length_true: $length_true length_false: $length_false"
 
 ((lendiff=$length_true-$length_false))
 if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
@@ -3331,7 +3341,7 @@ cat cleanscannerinputlist.txt | while read i; do
 	#this is for multipart POST forms:
 	if [[ $i =~ $question$question$question && "$methodical" =~ "POST" ]] ; then
 		multipartPOSTURL=1 
-		echo "Multipart detected!"
+		echo "INFO: Multipart form detected"
 	fi
 
 	if [ true = "$Z" ] ; then echo "DEBUG! firstPOSTURIURL: $firstPOSTURIURL" ; fi
@@ -3633,7 +3643,7 @@ cat cleanscannerinputlist.txt | while read i; do
 					# first we do clean & evil GET requests
 					# then we do clean & evil POST requests
 					# but POST requests are split out three ways: normal POST, POST URI params, POST data params
-					# also, we only send one good request per URL instead of one per parameter
+					# also, for POSTs, we only send one good request per URL instead of one per parameter
 
 					if [ true = "$Z" ] ; then echo "DEBUG! Entering REQUEST PHASE"; fi
 					sessionStorage=`cat ./session/$safelogname.$safehostname.sessionStorage.txt 2>/dev/null`
@@ -3787,6 +3797,10 @@ cat cleanscannerinputlist.txt | while read i; do
 										echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
 										tput sgr0 # Reset attributes.
 									fi
+								elif [ "$multipartPOSTURL" == 1 ] ; then
+									echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
+									echo -e '\E[31;48m'"\033[1m[ERROR: $z REQ:$K]\033[0m $method URL: $uhostname$page"???"$output";
+									tput sgr0 # Reset attributes.
 								else
 									#normal post
 									echo "[ERROR: $z REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
@@ -3832,6 +3846,11 @@ cat cleanscannerinputlist.txt | while read i; do
 										echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF: $answer REQ:$K]\033[0m $method URL: $uhostname$page"??"$output";
 										tput sgr0 # Reset attributes.
 									fi
+								elif [ "$multipartPOSTURL" == 1 ] ; then
+									#multipart post
+									echo "[LENGTH-DIFF: $answer REQ:$K $safefilename-resdiff-$K-$payloadcounter-$reqcount.txt] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
+									echo -e '\E[31;48m'"\033[1m[LENGTH-DIFF: $answer REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
+									tput sgr0 # Reset attributes.
 								else
 									#normal post
 									echo "[LENGTH-DIFF: $answer REQ:$K $safefilename-resdiff-$K-$payloadcounter-$reqcount.txt] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
@@ -3855,6 +3874,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						# separate out the http status code from the response:
 						and1eq2status=`echo $and1eq2 | cut -d ":" -f 1`
 						((status=$and1eq2status))
+						#TODO: the below is only set up for GETs, rework for POSTs too
 						if (($status == "500")) 
 							then echo "[STATUS-CODE: $status REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.status.txt 				
 						fi
@@ -3888,6 +3908,11 @@ cat cleanscannerinputlist.txt | while read i; do
 											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
 											tput sgr0 # Reset attributes.
 										fi
+									elif [ "$multipartPOSTURL" == 1 ] ; then
+										#normal post
+										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
+										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
+										tput sgr0 # Reset attributes.
 									else
 										#normal post
 										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
@@ -4053,6 +4078,9 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 	host=`echo $request | cut -d "/" -f3`
 	#the below is named oddly - it is really 'page + params': /subdir/page.aspx?foo=1&bar=1
 	params=`echo $request | cut -d "/" -f4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30`
+	params2=`echo "$aLINE" | cut -d "?" -f4`
+
+	#echo "params2 $params2"
 	#the below is also named oddly - it is really 'subdirs + page': subdir/page.aspx
 	page=`echo $params | cut -d "?" -f1`
 
@@ -4065,18 +4093,21 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 	#echo "params: $params"
 
 	if [[ "$method" == "POST" ]] ; then
-		if [[ $request =~ "??" ]] ; then 
+		if [[ $request =~ "??" && !($request =~ "???") ]] ; then #postURI POSTs only
 			postdataparams=`echo $params | cut -d "?" -f4`
 			postURIparams=`echo $params | cut -d "?" -f2`
-			#echo "postURIparams $postURIparams"
-			#echo "postdataparams $postdataparams"
+		elif [[ $request =~ "???" ]] ; then #multipart POSTs only
+			#echo "params2: "$params2
+			postdataparams=`echo $params2 | cut -d "?" -f4`	
+			#echo "postdataparams: "$postdataparams
+			echo $postdataparams | tr "&" "\n" > ./postdataparams.txt # for multipart posts: need a 'while read' later as the payloads have unencoded spaces				
 		else
 			postdataparams=`echo $params | cut -d "?" -f2`			
 			#echo "postdataparams $postdataparams"
 		fi
 		postdataparamslist=`echo "$postdataparams"| replace "&" " "`
 	fi
-
+	#cat ./postdataparams.txt
 	echo "$message" >> ./output/$safelogname-report-$safefilename.html
 	echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 	echo "<br>" >> ./output/$safelogname-report-$safefilename.html
@@ -4094,8 +4125,6 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "Host: $host" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
-			echo "Content-Type: multipart/form-data; boundary=---------------------------20126896602139731096819824864" >> ./output/$safelogname-report-$safefilename.html
-			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 
 			decodeinput=$postdataparams
@@ -4103,9 +4132,8 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 			decparam=$decodeoutput
 
 			#echo "$decparam" >> ./output/$safelogname-report-$safefilename.html
-			echo "<form action="$protocol//$host/$page" method="POST">" >> ./output/$safelogname-report-$safefilename.html
+			echo "<form action="$protocol//$host/$page?$postURIparams" method="POST">" >> ./output/$safelogname-report-$safefilename.html
 			for param in `echo $postdataparamslist` ; do
-				echo "-----------------------------20126896602139731096819824864" >> ./output/$safelogname-report-$safefilename.html
 				paramname=`echo $param | cut -d "=" -f 1`
 				paramval=`echo $param | cut -d "=" -f 2,3,4,5,6`
 				#this is the in the inverse of the encoding line in the fuzz loop
@@ -4123,20 +4151,11 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 			echo "<br>" >> ./output/$safelogname-report-$safefilename.html
 
-			decodeinput=$postparams
-			encodeme
-			decparam=$decodeoutput
-
-			#echo "$decparam" >> ./output/$safelogname-report-$safefilename.html
-			echo "<form action="$protocol//$host/$page?$postURIparams" method="POST">" >> ./output/$safelogname-report-$safefilename.html
-			for param in `echo $postdataparamslist` ; do
+			echo "<form action="$protocol//$host/$page" enctype="multipart/form-data" method="POST">" >> ./output/$safelogname-report-$safefilename.html
+			cat ./postdataparams.txt | while read param ; do
 				paramname=`echo $param | cut -d "=" -f 1`
 				paramval=`echo $param | cut -d "=" -f 2,3,4,5,6`
-				#this is the in the inverse of the encoding line in the fuzz loop
-				decodeinput=$paramval
-				encodeme
-				decparam=$decodeoutput
-				echo -n "<Input type="text" size=80 name=\"$paramname\" value=\"$decparam\"> " >> ./output/$safelogname-report-$safefilename.html
+				echo -n "<Input type="text" size=80 name=\"$paramname\" value=\"$paramval\"> " >> ./output/$safelogname-report-$safefilename.html
 			done
 			echo "<input type="submit"> " >> ./output/$safelogname-report-$safefilename.html
 			echo "</form> " >> ./output/$safelogname-report-$safefilename.html
