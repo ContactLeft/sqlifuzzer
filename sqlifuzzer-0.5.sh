@@ -1261,6 +1261,8 @@ zcount=2
 rm ./listofxpathelements.txt 2>/dev/null
 rm ./shortlist.txt 2>/dev/null
 rm ./extrashortlist.txt 2>/dev/null
+rm ./extrashortlist2.txt 2>/dev/null
+
 echo "Please wait - enumerating nodes..."
 
 while [[ "$ycount" -le "$zcount" ]] ; do
@@ -2643,10 +2645,12 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "AND one or more of the following payload types:"
 	echo "  -s String injection"
 	echo "  -n Numeric injection"
+	echo "  -sn String and numeric injection"
 	echo "  -q Quote injection"	
 	echo "  -r Quote injection with various encodings"	
 	echo "  -e SQL delay injection"
         echo "  -b OS Command injection"
+        echo "  -eb SQL delay injection and OS Command injection"
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
         #echo "  -Y XSS injection (very basic!)"
 	echo "Optional payload modifiers:             Before     After                         DBMS       "
@@ -2682,14 +2686,21 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "  -R RESTful paramters - horribly broken: do not use"
 	echo "  -Z DEBUG mode - very verbose output - useful for script debugging"
 	echo "Some examples:"
-	echo "A string, numeric and time-based SQL injection scan based on a burp log:"
-	echo "  $0 -t http://www.foo.bar -l example-burp.log -sne"
+	echo "String and numeric SQL injection scan based on a burp log:"
+	echo "  $0 -t http://www.foo.bar -l example-burp.log -sn"
 	echo "Using Parse mode to create an input file from a burp log file:"
 	echo "  $0 -l example-burp.log -P example-burp.input"
-	echo "A scan based on an input file, injecting encoded quote payloads with a leading null character and using method swapping:"
-	echo "  $0 -t http://192.168.2.21 -I example-burp.input -rAW"
-	echo "Runtime hints: CNTRL+c to skip out of a loop and scan the next URL, CNTRL+z to stop scanning altogether, re-run with the same values to resume an incomplete scan"	
+	echo "Runtime hints: CNTRL+c to skip to the end of the current loop iteration, CNTRL+z to stop scanning altogether, re-run with the same values to resume an incomplete scan"	
 	exit
+fi
+
+#prevent users from combining length-diffing and time-diffing scans:
+if [[ true == "$s" || true == "$n" || true == "$sn" ]] ; then
+	if [[ true == "$e" || true == "$b" || true == "$eb" ]]; then
+		echo "FATAL: Cannot combine length-diffing (s, n, sn) and time-diffing (e, b, eb) scans" >&2
+		echo "Either run: -s, -n, -sn, OR -e, -b, eb" >&2
+		exit
+	fi
 fi
 
 #a header has been specified
@@ -3884,7 +3895,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						#end of status code and error checking subsection
 						#beginning of time diff scan subsection
 						timedelay=0
-						if [[ true = "$e" || true = "$b" ]] ; then
+						if [[ true = "$e" || true = "$b" || true = "$eb" ]] ; then
 							and1eq1=`cat ./session/$safelogname.$safehostname.and1eq1.txt 2>/dev/null`
 							and1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`
 							and1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`
