@@ -3091,6 +3091,16 @@ fi
 rm ./aggoutputlog.txt 2>/dev/null
 rm ./alertmessage.txt 2>/dev/null
 	
+#################wget spider section#########################
+
+#wget --mirror http://192.168.194.129/ -o ./wgetlog.txt -d --spider
+
+#wget log parsing section#
+
+#cat ./wgetlog.txt | while read LINE ; do
+
+#---request begin---
+#---request end---
 
 #################burplog parser section#########################
 
@@ -3576,6 +3586,108 @@ fi
 
 #################scanner section#########################
 K=0
+
+mainrequester()
+{
+# beginning of main request function
+# this section is written confusingly:
+# first we do clean & evil GET requests
+# then we do clean & evil POST requests
+# but POST requests are split out three ways: normal POST, POST URI params, POST data params
+# also, for POSTs, we only send one good request per URL instead of one per parameter
+
+if [ true = "$Z" ] ; then echo "DEBUG! Entering REQUEST PHASE"; fi
+sessionStorage=`cat ./session/$safelogname.$safehostname.sessionStorage.txt 2>/dev/null`
+if [[ $method != "POST" ]]; then #we're doing a get - simples
+	if [[ "$sessionStorage" = 0 ]] ; then
+		#write set sessionStorage to 1 to prevent clean requests being sent for each param:
+		sessionStorage=1
+		echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
+		# send a 'normal' request
+		and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+		echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
+		echo "Testing URL $K of $entries $method $i"
+	fi
+	echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+	#send an evil get requst
+	and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+	if [ true = "$Z" ] ; then echo "Request: $r";fi
+	if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+	# right, thats it for clean and evil GET requests. now POSTs:
+else	# we're doing a POST - not so simple...
+	# we only need to send a clean request if we are doing time diffing and we havent already sent one for this URL
+	# TODO move the below IF to the next level up:
+	# it should encapsulate both clean GETs and clean POSTS, not just clean POSTS
+	# NOTE the below IF never gets executed, EXCEPT when doing timedelay or command injection.
+	# This is because length diff testing requests are sent by the EVIL send (the following IF)
+	# which commences with the comment "send an 'evil' POST request"
+	if [[ "$sessionStorage" == 0 && true = "$e" || true = "$b" ]] ; then
+		# send a 'normal' POST request
+		if (($firstPOSTURIURL>0)) ; then
+			if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
+				if [ $multipartPOSTURL != 1 ] ; then
+					and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+				fi
+				if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params"??"$static";fi
+				if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+				#write set sessionStorage to 1 to prevent clean requests being sent for each param:
+				sessionStorage=1
+				echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
+				echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
+				echo "Testing URL $K of $entries POST $uhostname$page?$params??$static" 	
+			fi
+			if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
+				and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+				if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params";fi
+				if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+				sessionStorage=1
+				echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
+				echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
+				echo "Testing URL $K of $entries POST $uhostname$page??$params" 
+			fi
+		elif [ "$multipartPOSTURL" == 1 ] ; then #we are in the land of multipart forms. here be dragons
+				mparam=`echo "--form $params" | replace "&" " --form " `
+				and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		else #just a normal POST:
+			and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+			#write set sessionStorage to 1 to prevent clean requests being sent for each param:
+			sessionStorage=1
+			echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
+			echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
+			echo "Testing URL $K of $entries POST $uhostname$page?$params" 		
+		fi	
+	fi
+	# send an 'evil' POST request
+	if (($firstPOSTURIURL>0)) ; then
+		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
+			and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+			echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"	
+		fi
+		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
+			and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+			echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+		fi
+	elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
+		#mparam=$(echo "--form \"$output\"" | replace "&" "\" --form \"")
+		#printf -v str 'Hello World\n===========\n'
+		echo -n "--form \""$output\" | replace '&' '" --form "' > ./foo.txt
+		#TODO: re-implement the -H "$headertoset" option in the below:
+		and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
+		if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi  
+		echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+	else #just a normal evil POST:
+		echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
+		and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
+	fi
+fi
+#end of request function
+}
+
 ####### scanning loop #############
 
 #this line makes sure we have specified a payload type
@@ -3909,102 +4021,6 @@ cat cleanscannerinputlist.txt | while read i; do
 					fi
 					# end of request preparation section
 					# beginning of request section
-					# this section is written confusingly:
-					# first we do clean & evil GET requests
-					# then we do clean & evil POST requests
-					# but POST requests are split out three ways: normal POST, POST URI params, POST data params
-					# also, for POSTs, we only send one good request per URL instead of one per parameter
-
-					if [ true = "$Z" ] ; then echo "DEBUG! Entering REQUEST PHASE"; fi
-					sessionStorage=`cat ./session/$safelogname.$safehostname.sessionStorage.txt 2>/dev/null`
-					if [[ $method != "POST" ]]; then #we're doing a get - simples					
-						if [[ "$sessionStorage" = 0 ]] ; then
-							#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-							sessionStorage=1
-							echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
-							# send a 'normal' request
-							and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-							if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-							echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
-							echo "Testing URL $K of $entries $method $i"
-						fi
-						echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
-						#send an evil get requst
-						and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-						if [ true = "$Z" ] ; then echo "Request: $r";fi
-						if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-						# right, thats it for clean and evil GET requests. now POSTs:
-					else	# we're doing a POST - not so simple...
-						# we only need to send a clean request if we are doing time diffing and we havent already sent one for this URL
-						# TODO move the below IF to the next level up:
-						# it should encapsulate both clean GETs and clean POSTS, not just clean POSTS
-						# NOTE the below IF never gets executed, EXCEPT when doing timedelay or command injection.
-						# This is because length diff testing requests are sent by the EVIL send (the following IF)
-						# which commences with the comment "send an 'evil' POST request"
-						if [[ "$sessionStorage" == 0 && true = "$e" || true = "$b" ]] ; then
-							# send a 'normal' POST request
-							if (($firstPOSTURIURL>0)) ; then
-								if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-									if [ $multipartPOSTURL != 1 ] ; then
-										and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-									fi
-									if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params"??"$static";fi
-									if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-									#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-									sessionStorage=1
-									echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
-									echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
-									echo "Testing URL $K of $entries POST $uhostname$page?$params??$static" 	
-								fi
-								if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-									and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
-									if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params";fi
-									if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-									sessionStorage=1
-									echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
-									echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
-									echo "Testing URL $K of $entries POST $uhostname$page??$params" 
-								fi
-							elif [ "$multipartPOSTURL" == 1 ] ; then #we are in the land of multipart forms. here be dragons
-									mparam=`echo "--form $params" | replace "&" " --form " `
-									and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-							else #just a normal POST:
-								and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-								if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-								#write set sessionStorage to 1 to prevent clean requests being sent for each param:
-								sessionStorage=1
-								echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
-								echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
-								echo "Testing URL $K of $entries POST $uhostname$page?$params" 		
-							fi						
-						fi
-						# send an 'evil' POST request
-						if (($firstPOSTURIURL>0)) ; then
-							if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-								and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-								if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"	
-							fi
-							if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-								and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-								if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-								echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
-							fi
-						elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
-							#mparam=$(echo "--form \"$output\"" | replace "&" "\" --form \"")
-							#printf -v str 'Hello World\n===========\n'
-							echo -n "--form \""$output\" | replace '&' '" --form "' > ./foo.txt
-							#TODO: re-implement the -H "$headertoset" option in the below:
-							and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
-							if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi  
-							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
-						else #just a normal evil POST:
-							echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
-							and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
-							if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
-						fi
-					fi
-					#end of request section
 
 					if [ true = "$O" ] ; then #uri unicode encoding
 						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $inputbuffer";fi
@@ -4013,6 +4029,9 @@ cat cleanscannerinputlist.txt | while read i; do
 					  	payload=$uriinputdecoded
 						if [ true = "$Z" ] ; then echo "DEBUG! encoder input: $inputbuffer";fi
 					fi
+					
+					#this calls the mainrequester function
+					mainrequester
 
 					#beginning of response parsing section
                                         if [ true = "$Z" ] ; then echo "DEBUG! Entering response analysis phase";fi 
@@ -4161,59 +4180,75 @@ cat cleanscannerinputlist.txt | while read i; do
 							and1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`
 							and1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`
 							((time_diff=and1eq2time-and1eq1time))
-							if (($and1eq2time>$and1eq1time)) ; then
-							#set the vulnerable flag and sploit that mutha
-							vulnerable=1
-							timedelay=1
-							#this code searches the clean payload to ID the dbms 
-							if [[ "$cleanoutput" =~ "waitfor" || "$cleanoutput" =~ "werui" ]] ; then
-								#echo "[TIME-DELAY-WAITFOR DBMS IS MSSQL] " >> ./output/$safelogname$safefilename.txt
-								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-WAITFOR DBMS IS MSSQL]\033[0m"
-								#tput sgr0 # Reset attributes.	
-								dbms=mssql
-							fi
-							if [[ "$cleanoutput" =~ "benchmark" && "$cleanoutput" =~ "MD5" ]] ; then
-								#echo "[TIME-DELAY-BENCHMARK DBMS IS MYSQL] " >> ./output/$safelogname$safefilename.txt
-								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-BENCHMARK DBMS IS MYSQL]\033[0m"
-								#tput sgr0 # Reset attributes.	
-								dbms=mysql
-							fi
-							if [[ "$cleanoutput" =~ "UTL_INADDR" ]] ; then
-								#echo "[TIME-DELAY-UTL_INADDR DBMS IS ORACLE] " >> ./output/$safelogname$safefilename.txt
-								#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-UTL_INADDR DBMS IS ORACLE]\033[0m"
-								#tput sgr0 # Reset attributes.	
-								dbms=oracle
-							fi
-								if [[ $method != "POST" ]] ; then #we're doing a get - simples
-									echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt 
-									echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
-									tput sgr0 # Reset attributes.
-								else
-									if (($firstPOSTURIURL>0)) ; then
-										if [ $firstPOSTURIURL == 1 ] ; then
-											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
-											tput sgr0 # Reset attributes.
-										else
-											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt
-											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
-											tput sgr0 # Reset attributes.
-										fi
-									elif [ "$multipartPOSTURL" == 1 ] ; then
-										#normal post
-										echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
-										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
-										tput sgr0 # Reset attributes.
-									else
-										#normal post
-										echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
+							#we arbitrarily set the time delay diff detection threshold to five seconds:
+							if (($time_diff>5)) ; then #looks interesting...
+								echo -e '\E[31;48m'"\033[1m[TIME DIFF: $time_diff SECS - re-submitting request to confirm]\033[0m"
+								tput sgr0 # Reset attributes.
+								#re-submit the request - reduces false positives if a single request is delayed for other reasons
+								mainrequester
+								newand1eq1time=`echo "$and1eq1" | cut -d ":" -f 3| cut -d "." -f1`
+								newand1eq2time=`echo "$and1eq2" | cut -d ":" -f 3| cut -d "." -f1`
+								((newtime_diff=newand1eq2time-newand1eq1time))
+							
+								echo "INFO: REPEAT TIME DIFF: $newtime_diff SECS"
+								((finaltime_diff=newtime_diff-time_diff))
+
+								echo "INFO: DIFFERENCE BETWEEN BOTH TIMEDELAY REQUESTS: $finaltime_diff SECS"
+								# we set the trigger threshold to be +2 or -2 seconds:
+								if (($finaltime_diff<2||$finaltime_diff>-2)) ; then
+									#set the vulnerable flag and sploit that mutha
+									vulnerable=1
+									timedelay=1
+									#this code searches the clean payload to ID the dbms 
+									if [[ "$cleanoutput" =~ "waitfor" || "$cleanoutput" =~ "werui" ]] ; then
+										#echo "[TIME-DELAY-WAITFOR DBMS IS MSSQL] " >> ./output/$safelogname$safefilename.txt
+										#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-WAITFOR DBMS IS MSSQL]\033[0m"
+										#tput sgr0 # Reset attributes.	
+										dbms=mssql
+									fi
+									if [[ "$cleanoutput" =~ "benchmark" && "$cleanoutput" =~ "MD5" ]] ; then
+										#echo "[TIME-DELAY-BENCHMARK DBMS IS MYSQL] " >> ./output/$safelogname$safefilename.txt
+										#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-BENCHMARK DBMS IS MYSQL]\033[0m"
+										#tput sgr0 # Reset attributes.	
+										dbms=mysql
+									fi
+									if [[ "$cleanoutput" =~ "UTL_INADDR" ]] ; then
+										#echo "[TIME-DELAY-UTL_INADDR DBMS IS ORACLE] " >> ./output/$safelogname$safefilename.txt
+										#echo -e '\E[31;48m'"\033[1m[TIME-DELAY-UTL_INADDR DBMS IS ORACLE]\033[0m"
+										#tput sgr0 # Reset attributes.	
+										dbms=oracle
+									fi
+									if [[ $method != "POST" ]] ; then #we're doing a get - simples
+										echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt 
 										echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
 										tput sgr0 # Reset attributes.
+									else
+										if (($firstPOSTURIURL>0)) ; then
+											if [ $firstPOSTURIURL == 1 ] ; then
+												echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$static"??"$output" >> ./output/$safelogname$safefilename.txt
+												echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$static"??"$output"
+												tput sgr0 # Reset attributes.
+											else
+												echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"??"$output" >> ./output/$safelogname$safefilename.txt
+												echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"??"$output"
+												tput sgr0 # Reset attributes.
+											fi
+										elif [ "$multipartPOSTURL" == 1 ] ; then
+											#normal post
+											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"???"$output" >> ./output/$safelogname$safefilename.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"???"$output"
+											tput sgr0 # Reset attributes.
+										else
+											#normal post
+											echo "[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K] $method URL: $uhostname$page"?"$output" >> ./output/$safelogname$safefilename.txt
+											echo -e '\E[31;48m'"\033[1m[TIME-DELAY-"$time_diff"SEC $dbms REQ:$K]\033[0m $method URL: $uhostname$page"?"$output"
+											tput sgr0 # Reset attributes.
+										fi
 									fi
 								fi
 							fi
 						fi
-						#end of time diff scan	
+					#end of time diff scan	
 					fi
 					#gotta clear down the output buffer:					
 					outputstore=$output					
