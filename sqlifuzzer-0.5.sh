@@ -49,7 +49,7 @@ fi
 
 #URL encoding occurs unless we are doing URI unicode encoding 
 #if [ false = "$O" ] ; then  
-encodeoutput=`echo $inputbuffer | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f"` 
+encodeoutput=`echo $inputbuffer | replace " " "%20" | replace "." "%2e" | replace "<" "%3c" | replace ">" "%3e" | replace "?" "%3f" | replace "+" "%2b" | replace "*" "%2a" | replace ";" "%3b" | replace ":" "%3a" | replace "(" "%28" | replace ")" "%29" | replace "," "%2c" | replace "/" "%2f" | replace "|" "%7c"` 
 #fi
 
 #replace URL encoded spaces with comments and intermediary characters
@@ -83,7 +83,7 @@ fi
 
 #URL decoding occurs unless we are doing URI unicode encoding 
 #if [ false = "$O" ] ; then  
-decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/" | replace "%2a" "*"`; 
+decodeoutput=`echo $decodeinput | replace "%20" " " | replace "%2e" "." | replace "%3c" "<" | replace "%3e" ">" | replace "%3f" "?" | replace "%2b" "+" | replace "%2a" "*" | replace "%3b" ";" | replace "%3a" ":" | replace "%28" "("| replace "%29" ")" | replace "%2c" "," | replace "%2f" "/" | replace "%7c" "|"`; 
 #fi
 }
 
@@ -3097,10 +3097,26 @@ rm ./alertmessage.txt 2>/dev/null
 
 #wget log parsing section#
 
-#cat ./wgetlog.txt | while read LINE ; do
+#get="GET "
+#post="POST "
+#question="\?"
+#N=0
+#begin="---request begin---"
+#end="---request end---"
 
-#---request begin---
-#---request end---
+#captureflag=0
+
+#cat ./wgetlog.txt | while read LINE ; do
+#	if [[ $LINE =~ $begin ]]; then
+#		captureflag=1
+#	fi
+#	if [[ $LINE =~ $end ]]; then
+#		captureflag=0
+#	fi
+#	if [ $captureflag == 1 ]; then
+#		captureflag=0
+#	fi
+
 
 #################burplog parser section#########################
 
@@ -4103,12 +4119,16 @@ cat cleanscannerinputlist.txt | while read i; do
 					done
 					#end of subsection that scans for common error strings									
 					#beginning of response lenth diffing section
-
-					if [[ "$payload" =~ "345" || "$payload" =~ "dfth" ]]
+					
+					#this is IMPORTANT!!
+					#if you want to perform length diffing (i.e. -sn)
+					#you need to include 345 or dfth in the always false payload and 456 or fghi in the always true payload.
+					#also, order by diffing should be 9999 vs 1
+					if [[ "$payload" =~ "345" || "$payload" =~ "dfth" || "$payload" =~ "1" ]]
 						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
-					if [[ "$payload" =~ "456" || "$payload" =~ "fghi" ]]
+					if [[ "$payload" =~ "456" || "$payload" =~ "fghi" || "$payload" =~ "9999"]]
 						then SQLunequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
