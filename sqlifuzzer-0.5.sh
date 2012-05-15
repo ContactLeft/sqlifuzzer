@@ -4128,7 +4128,7 @@ cat cleanscannerinputlist.txt | while read i; do
 						then SQLequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
-					if [[ "$payload" =~ "456" || "$payload" =~ "fghi" || "$payload" =~ "9999"]]
+					if [[ "$payload" =~ "456" || "$payload" =~ "fghi" || "$payload" =~ "9999" ]]
 						then SQLunequallength=`echo $and1eq2 | cut -d ":" -f 2`
 					fi
 
