@@ -5,7 +5,7 @@
 reqcount=0
 
 #default delay duration to use for timedelay testing: 
-timedelay="20"
+timedelayduration="20"
 
 #delay threshold in seconds. When running a time delay scan, this can be set to tune out false positives. This should be higher than 'normal' request times to prevent false positives, but lower than the timedelay value:
 timedelaythreshhold="1" 
@@ -430,14 +430,14 @@ orderbycheck
 
 
 #if you get two non-200 status's back, both 'order by x' requests failed; append an '--' on the end: 
-if [[ "$status1" != "200" && "$status1" == "$status999" ]] ; then
+if [[ "$status1" != "200" && "$status1" == "$status999" && "$timedelay" == "0" ]] ; then
 	end="--"
 	orderbycheck
 fi
 
 #if status1 is different from status999 and status1 was a 200 you should be golden!
 success=0
-if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
+if [[ "$status1" != "$status999" && "$status1" == "200" && "$timedelay" == "0" ]] ; then
 	# a difference between the two order by statements - we are good for order by column number enum
 	echo "Using 'order by x' and response http status diffing to determine the number of columns"
 	orderbyrequest
@@ -446,11 +446,11 @@ fi
 #if the above didnt work out,
 #repeat the above, appending a # instead of --
 if [[ "$success" == 0 ]] ; then
-	if [[ "$status1" != "200" && "$status1" == "$status999" ]] ; then
+	if [[ "$status1" != "200" && "$status1" == "$status999" && "$timedelay" == "0" ]] ; then
 		end='-- #'
 		orderbycheck
 	fi
-	if [[ "$status1" != "$status999" && "$status1" == "200" ]] ; then
+	if [[ "$status1" != "$status999" && "$status1" == "200" && "$timedelay" == "0" ]] ; then
 		# a difference between the two order by statements - we are good for order by column number enum
 		echo "Using 'order by x' and response http status diffing to determine the number of columns"
 		orderbyrequest
@@ -461,7 +461,7 @@ fi
 if [[ "$success" == 0 ]] ; then
 	#end is currently set to #
 	orderbycheck
-	if [[ "$status1" == "200" && "$status999" == "200" && "$ordlngthdiff" == "1" ]] ; then
+	if [[ "$status1" == "200" && "$status999" == "200" && "$ordlngthdiff" == "1" && "$timedelay" == "0" ]] ; then
 		# a difference IN LENGTH between the two order by statements - we are good for order by column number enum
 		orderbyrequestlength
 	fi
@@ -2602,11 +2602,11 @@ fi
 
 #uncomment the below when timebased extraction is done...
 
-if [[ "extract" == 0 ]] ; then
-	#status/length diffing didnt work - lets try time based diffing:
-	lettergrabtimebased
-fi
-#lettergrabtimebased
+#if [[ "extract" == 0 ]] ; then
+#	#status/length diffing didnt work - lets try time based diffing:
+#	lettergrabtimebased
+#fi
+lettergrabtimebased
 
 }
 
@@ -3018,7 +3018,7 @@ while getopts l:c:t:nsqehx:d:bu:P:v:L:M:Q:I:T:C:rWS:ABjYfoD:FGHRZVUOKJENakmpwyz:
         ;;
     x) # time delay duration
         x=true
-	timedelay=$OPTARG
+	timedelayduration=$OPTARG
         ;;
     d) # default error string used to ID a default error page
         d=true
@@ -3174,7 +3174,7 @@ if [ true = "$h" ] || ["$1" == ""] 2>/dev/null ; then
 	echo "  -c <cookie> Add cookies. Enclose in single quotes: -c 'foo=bar'. Multiple cookies must be defined without spaces: -c 'foo=bar;sna=fu'"
 	echo "  -a <headername:headervalue> Add a header like this (basic HTTP auth) example: -a 'Authorization: Basic d2ViZ29hdDp3ZWJnb2F0'"	
 	echo "  -D <mssql, oracle, mysql> Specify a back end DBMS if known. Reduces the number of payloads. Options are currently mssql, oracle or mysql"
-	echo "  -x <delay in seconds> Time delay for SQL and command injection - if not provided, this will default to $timedelay seconds"
+	echo "  -x <delay in seconds> Time delay for SQL and command injection - if not provided, this will default to $timedelayduration seconds"
 	echo "  -d <default error string> Define a detection string (inside double quotes) to identify a default error page"
 	echo "  -v <http://proxy:port> Define a proxy. Currently, I crash burp. Dont know why."
 	echo "  -L <URL of session liveness check page> Conduct an access check on a given page to determine the session cookie is valid"	
@@ -3755,18 +3755,18 @@ fi
 if [ true = "$e" ] ; then
 	if [ true = "$D" ] ; then	
 		cat ./payloads/timedelaypayloads.$dbms.txt | while read quack; do
-			echo $quack | replace "X" $timedelay >> payloads.txt
+			echo $quack | replace "X" $timedelayduration >> payloads.txt
 		done
 	else
 		cat ./payloads/timedelaypayloads.txt | while read quack; do
-			echo $quack | replace "X" $timedelay >> payloads.txt
+			echo $quack | replace "X" $timedelayduration >> payloads.txt
 		done
 	fi
 fi
 
 if [ true = "$b" ] ; then
 	cat ./payloads/commandpayloads.txt | while read quack; do		
-		echo $quack | replace "X" $timedelay >> payloads.txt
+		echo $quack | replace "X" $timedelayduration >> payloads.txt
 	done
 fi
 
@@ -3794,11 +3794,11 @@ fi
 #	done
 #fi
 
-# this code scans through a custom payload list and replaces 'X' with the $timedelay value:
+# this code scans through a custom payload list and replaces 'X' with the $timedelayduration value:
 # this allows users to specifiy their own timedelay sqli payloads:
 if [ true = "$C" ] ; then
 	cat $custompayloadlist | while read quack; do
-		echo $quack | replace "X" $timedelay >> payloads.txt
+		echo $quack | replace "X" $timedelayduration >> payloads.txt
 	done
 fi
 
@@ -4804,7 +4804,11 @@ cat ./output/$safelogname-sorted-$safefilename.txt | while read aLINE ; do
 	fi
 	if [[ "$message" =~ "LENGTH-DIFF:" ]] ; then
 		echo "<br>" >> ./output/$safelogname-report-$safefilename.html
+
 		respdiff=`echo $message | cut -d " " -f 4`
+
+		#echo "debug message=$message"
+		#echo "debug respdiff=$respdiff"
 		echo " <a href="./../responsediffs/$respdiff">View Response Diff</a>" >> ./output/$safelogname-report-$safefilename.html
 		echo "<br>" >> ./output/$safelogname-report-$safefilename.html	
 	fi
