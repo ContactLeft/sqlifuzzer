@@ -181,16 +181,16 @@ requester()
 if [ true = "$Z" ] ; then echo "DEBUG! sending: $badparams" ; fi
 if [[ $method != "POST" ]]; then #we're doing a get - simples					
 	# send a 'normal' request
-	response=`curl $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+	response=`curl $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 	request="$method URL: $uhostname$page"?"$badparams"
 else	# we're doing a POST - not so simple...
 	if (($firstPOSTURIURL>0)) ; then
 		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-			response=`curl -d "$static" $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			response=`curl -d "$static" $uhostname$page"?"$badparams -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 			request="$method URL: $uhostname$page?$badparams??$static" 	
 		fi
 		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-			response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 			request="$method URL: $uhostname$page??$badparams" 
 		fi
 	elif [ "$multipartPOSTURL" == 1 ] ; then #we are in multipart form mode
@@ -199,11 +199,11 @@ else	# we're doing a POST - not so simple...
 		encodeme
 		badparams=$decodeoutput
 		echo -n "--form \""$badparams\" | replace '&' '" --form "' > ./foo.txt
-		response="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
+		response="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dump --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`"
 		#echo "Response: `cat ./foo.txt`"
 		request="MULTIPART POST URL: $uhostname$page???$badparams"
 	else #just a normal POST:
-		response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		response=`curl -d "$badparams" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 		request="$method URL: $uhostname$page?$badparams" 		
 	fi
 fi
@@ -4143,14 +4143,14 @@ if [[ $method != "POST" ]]; then #we're doing a get - simples
 		sessionStorage=1
 		echo $sessionStorage > ./session/$safelogname.$safehostname.sessionStorage.txt
 		# send a 'normal' request
-		and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		and1eq1=`curl $i -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 		if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 		echo $and1eq1 > ./session/$safelogname.$safehostname.and1eq1.txt
 		echo "Testing URL $K of $entries $method $i"
 	fi
 	echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 	#send an evil get requst
-	and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+	and1eq2=`curl $r -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 	if [ true = "$Z" ] ; then echo "Request: $r";fi
 	if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 	# right, thats it for clean and evil GET requests. now POSTs:
@@ -4166,7 +4166,7 @@ else	# we're doing a POST - not so simple...
 		if (($firstPOSTURIURL>0)) ; then
 			if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
 				if [ $multipartPOSTURL != 1 ] ; then
-					and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+					and1eq1=`curl -d "$static" $uhostname$page"?"$params -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 				fi
 				if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params"??"$static";fi
 				if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
@@ -4177,7 +4177,7 @@ else	# we're doing a POST - not so simple...
 				echo "Testing URL $K of $entries POST $uhostname$page?$params??$static" 	
 			fi
 			if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-				and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`;
+				and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`;
 				if [ true = "$Z" ] ; then echo "Request: $uhostname$page"?"$params";fi
 				if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 				sessionStorage=1
@@ -4187,9 +4187,9 @@ else	# we're doing a POST - not so simple...
 			fi
 		elif [ "$multipartPOSTURL" == 1 ] ; then #we are in the land of multipart forms. here be dragons
 				mparam=`echo "--form $params" | replace "&" " --form " `
-				and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+				and1eq2=`curl $uhostname$page $mparam -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 		else #just a normal POST:
-			and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			and1eq1=`curl -d "$params" $uhostname$page -o dump --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 			if [ true = "$Z" ] ; then resp=`echo $and1eq1 | cut -d ":" -f 1`; time=`echo $and1eq1 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 			#write set sessionStorage to 1 to prevent clean requests being sent for each param:
 			sessionStorage=1
@@ -4201,12 +4201,12 @@ else	# we're doing a POST - not so simple...
 	# send an 'evil' POST request
 	if (($firstPOSTURIURL>0)) ; then
 		if [ $firstPOSTURIURL == 1 ] ; then #we want to fuzz the POSTURI params, NOT the data
-			and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			and1eq2=`curl -d "$static" $uhostname$page"?"$output -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 			if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 			echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"	
 		fi
 		if [ $firstPOSTURIURL == 2 ] ; then #we want to fuzz the POST data params, NOT the POSTURI params
-			and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+			and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 			if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 			echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 		fi
@@ -4215,16 +4215,18 @@ else	# we're doing a POST - not so simple...
 		#printf -v str 'Hello World\n===========\n'
 		echo -n "--form \""$output\" | replace '&' '" --form "' > ./foo.txt
 		#TODO: re-implement the -H "$headertoset" option in the below:
-		and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`"
+		and1eq2="`eval curl $uhostname$page "\`cat ./foo.txt\`" -o dumpfile --cookie $cookie $curlproxy $httpssupport -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`"
 		if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi  
 		echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
 	else #just a normal evil POST:
 		echo "$method URL: $K/$entries Param ("$((paramflag + 1 ))"/"$arraylength")": $paramtotest "Payload ("$payloadcounter"/"$totalpayloads"): $payload"
-		and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}" 2>/dev/null`
+		and1eq2=`curl -d "$output" $uhostname$page -o dumpfile --cookie $cookie $curlproxy $httpssupport -H "$headertoset" -w "%{http_code}:%{size_download}:%{time_total}:%{redirect_url}" 2>/dev/null`
 		if [ true = "$Z" ] ; then resp=`echo $and1eq2 | cut -d ":" -f 1`; time=`echo $and1eq2 | cut -d ":" -f 3`; echo "DEBUG! STATUS: $resp TIME: $time";fi
 	fi
 fi
 #end of request function
+
+redirectlocation=`echo $and1eq2 | cut -d ":" -f 4,5,6,7,8,9,10`
 }
 
 ####### scanning loop #############
@@ -4578,6 +4580,9 @@ cat cleanscannerinputlist.txt | while read i; do
 					reponseStatusCode=`echo $and1eq2 | cut -d ":" -f 1`;
 					if [[ "$reponseStatusCode" != "200" && "$reponseStatusCode" != "404" ]]
 						then echo "ALERT: Status code "$reponseStatusCode" response";
+						if [[ "$reponseStatusCode" == "302" ]] ; then
+							echo "ALERT: Location: $redirectlocation"
+						fi
 					fi 
 					# xss testing subsection
 					# this is mothballed for now
