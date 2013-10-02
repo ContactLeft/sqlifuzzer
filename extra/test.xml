@@ -1,1 +1,8 @@
-test
+<?xml version="1.0" encoding="UTF-8"?>
+
+<data>
+  <root text="test" summary="test">
+    <child text="test" summary="" recommendation="false">
+    </child>
+  </root>
+</data>
