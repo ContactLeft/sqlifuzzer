@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<demo project="pp" name="Test-101" pagename="PageName" country="CA" language="en_us" version="version">
+<chapters path="">
+<chapter name="Setup" file="filename.flv" dur="10.0" />
+</chapters>
+</demo>
+
